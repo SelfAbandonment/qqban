@@ -84,7 +84,7 @@ class GroupActivityPlugin(Star):
         yield event.plain_result("活跃度数据已清空")
 
     # 消息事件处理 - 使用更通用的消息过滤器
-    @filter.on("message")
+    @filter.message()
     async def handle_message(self, event: AstrMessageEvent):
         """处理消息事件"""
         # 只在群聊中记录
@@ -127,7 +127,7 @@ class GroupActivityPlugin(Star):
         await self.check_milestones(event, member, user_id)
 
     # 群成员加入事件 - 使用成员加入过滤器
-    @filter.on("group_member_increase")
+    @filter.member_join()
     async def handle_member_join(self, event: AstrMessageEvent):
         """处理新成员加入事件"""
         if not event.group:
