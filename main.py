@@ -3,6 +3,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 from datetime import datetime, timedelta
 import json
+import re
 
 @register("GroupActivity", "AstrBot助手", "群成员活跃度统计插件", "1.0.0")
 class GroupActivityPlugin(Star):
@@ -82,10 +83,14 @@ class GroupActivityPlugin(Star):
         await self.context.storage.delete(self.storage_key)
         yield event.plain_result("活跃度数据已清空")
 
-    # 消息事件处理
-    @filter.group_message()
-    async def handle_group_message(self, event: AstrMessageEvent):
-        """处理群消息事件"""
+    # 消息事件处理 - 使用更通用的消息过滤器
+    @filter.on("message")
+    async def handle_message(self, event: AstrMessageEvent):
+        """处理消息事件"""
+        # 只在群聊中记录
+        if not event.group:
+            return
+
         group_id = event.group.id
         user_id = event.sender.id
         user_name = event.sender.name or str(user_id)
@@ -121,10 +126,13 @@ class GroupActivityPlugin(Star):
         # 里程碑检查（可选）
         await self.check_milestones(event, member, user_id)
 
-    # 群成员加入事件
-    @filter.group_member_join()
+    # 群成员加入事件 - 使用成员加入过滤器
+    @filter.on("group_member_increase")
     async def handle_member_join(self, event: AstrMessageEvent):
         """处理新成员加入事件"""
+        if not event.group:
+            return
+            
         group_id = event.group.id
         user_id = event.sender.id
         user_name = event.sender.name or str(user_id)
@@ -167,6 +175,7 @@ class GroupActivityPlugin(Star):
         
         # 更新group_name（如果群名发生变化）
         if activity_data.get("members"):
+            # 假设第一个成员的数据中有群ID
             group_id = next(iter(activity_data["members"].values()))["group_id"]
             all_data[group_id] = activity_data
         
