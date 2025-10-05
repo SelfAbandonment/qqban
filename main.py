@@ -3,23 +3,39 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 from datetime import datetime, timedelta
 import json
-import re
+import asyncio
+import time
+from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
 
-@register("GroupActivity", "AstrBot助手", "群成员活跃度统计插件", "1.0.0")
+@register("GroupActivity", "AstrBot助手", "群成员活跃度统计与监控插件", "1.1.0")
 class GroupActivityPlugin(Star):
     def __init__(self, context: Context):
         super().__init__(context)
         self.storage_key = "group_activity_data"
+        self.notification_key = "activity_notification_data"
+        
+        # 监控配置
+        self.monitor_config = {
+            'inactive_threshold': 7,  # 不活跃阈值（天）
+            'check_interval': 24 * 3600,  # 检查间隔（秒）- 24小时
+            'notify_cooldown': 3,  # 通知冷却时间（天）
+            'enable_monitoring': True,  # 启用监控
+        }
     
     async def initialize(self):
         """插件初始化"""
-        logger.info("群活跃度统计插件已加载")
+        logger.info("群活跃度统计与监控插件已加载")
+        
+        # 启动监控任务
+        if self.monitor_config['enable_monitoring']:
+            asyncio.create_task(self.monitor_inactive_users())
     
     async def terminate(self):
         """插件销毁"""
-        logger.info("群活跃度统计插件已卸载")
+        logger.info("群活跃度统计与监控插件已卸载")
 
-    # 活跃度统计命令
+    # ===== 原有活跃度统计功能 =====
+    
     @filter.command("activity")
     async def activity_command(self, event: AstrMessageEvent):
         """查询群成员活跃度排名"""
@@ -47,7 +63,6 @@ class GroupActivityPlugin(Star):
         result = self.generate_ranking(activity_data, period, page)
         yield event.plain_result(result)
 
-    # 个人活跃度查询
     @filter.command("myactivity")
     async def myactivity_command(self, event: AstrMessageEvent):
         """查询我的活跃度"""
@@ -67,7 +82,6 @@ class GroupActivityPlugin(Star):
         result = self.format_member_stats(member_data, event.sender.name)
         yield event.plain_result(result)
 
-    # 清空数据命令（管理员）
     @filter.command("cleardata")
     async def cleardata_command(self, event: AstrMessageEvent):
         """清空活跃度数据（管理员）"""
@@ -81,9 +95,46 @@ class GroupActivityPlugin(Star):
             return
         
         await self.context.storage.delete(self.storage_key)
+        await self.context.storage.delete(self.notification_key)
         yield event.plain_result("活跃度数据已清空")
 
-    # 消息事件处理 - 使用更通用的消息过滤器
+    # ===== 新增监控功能 =====
+    
+    @filter.command("monitor_config")
+    async def monitor_config_command(self, event: AstrMessageEvent):
+        """查看或设置监控配置（管理员）"""
+        if not await self.is_admin(event):
+            yield event.plain_result("需要管理员权限")
+            return
+        
+        args = event.message_str.split()[1:]
+        
+        if not args:
+            # 显示当前配置
+            config_text = "📊 活跃度监控配置：\n"
+            for key, value in self.monitor_config.items():
+                config_text += f"{key}: {value}\n"
+            config_text += "\n使用 /monitor_config set <参数> <值> 修改配置"
+            yield event.plain_result(config_text)
+            return
+        
+        if args[0] == "set" and len(args) >= 3:
+            param = args[1]
+            value = args[2]
+            
+            if param in self.monitor_config:
+                # 类型转换
+                if isinstance(self.monitor_config[param], bool):
+                    self.monitor_config[param] = value.lower() in ["true", "1", "yes", "on"]
+                elif isinstance(self.monitor_config[param], int):
+                    self.monitor_config[param] = int(value)
+                else:
+                    self.monitor_config[param] = value
+                
+                yield event.plain_result(f"✅ 已更新 {param} = {self.monitor_config[param]}")
+            else:
+                yield event.plain_result(f"❌ 未知参数: {param}")
+
     @filter.message()
     async def handle_message(self, event: AstrMessageEvent):
         """处理消息事件"""
@@ -105,6 +156,7 @@ class GroupActivityPlugin(Star):
                 "total": 0,
                 "today": 0,
                 "last_date": today,
+                "last_timestamp": time.time(),  # 新增时间戳
                 "join_date": today
             }
         
@@ -115,9 +167,10 @@ class GroupActivityPlugin(Star):
             member["today"] = 0
             member["last_date"] = today
         
-        # 更新计数
+        # 更新计数和时间戳
         member["total"] += 1
         member["today"] += 1
+        member["last_timestamp"] = time.time()  # 更新最后活跃时间戳
         member["name"] = user_name  # 更新昵称
         
         # 保存数据
@@ -126,32 +179,122 @@ class GroupActivityPlugin(Star):
         # 里程碑检查（可选）
         await self.check_milestones(event, member, user_id)
 
-    # 群成员加入事件 - 使用成员加入过滤器
-    @filter.member_join()
-    async def handle_member_join(self, event: AstrMessageEvent):
-        """处理新成员加入事件"""
-        if not event.group:
-            return
-            
-        group_id = event.group.id
-        user_id = event.sender.id
-        user_name = event.sender.name or str(user_id)
-        today = datetime.now().strftime("%Y-%m-%d")
-        
-        activity_data = await self.get_activity_data(group_id, create_if_missing=True)
-        
-        # 添加新成员
-        activity_data["members"][user_id] = {
-            "name": user_name,
-            "total": 0,
-            "today": 0,
-            "last_date": today,
-            "join_date": today
-        }
-        
-        await self.save_activity_data(activity_data)
+    async def monitor_inactive_users(self):
+        """监控不活跃用户并发送通知"""
+        while True:
+            try:
+                if self.monitor_config['enable_monitoring']:
+                    await self.check_and_notify_inactive_users()
+                await asyncio.sleep(self.monitor_config['check_interval'])
+            except Exception as e:
+                logger.error(f"监控任务出错: {e}")
+                await asyncio.sleep(3600)  # 出错后1小时重试
 
-    # ===== 辅助方法 =====
+    async def check_and_notify_inactive_users(self):
+        """检查并通知不活跃用户"""
+        try:
+            # 获取所有群数据
+            data_str = await self.context.storage.get(self.storage_key)
+            if not data_str:
+                return
+                
+            all_data = json.loads(data_str)
+            current_time = time.time()
+            inactive_threshold = self.monitor_config['inactive_threshold'] * 24 * 3600
+            
+            # 获取通知记录
+            notification_data = await self.get_notification_data()
+            
+            for group_id, activity_data in all_data.items():
+                if "members" not in activity_data:
+                    continue
+                    
+                for user_id, member_data in activity_data["members"].items():
+                    last_active = member_data.get("last_timestamp", 0)
+                    if last_active == 0:
+                        continue
+                    
+                    # 计算不活跃天数
+                    inactive_days = (current_time - last_active) / (24 * 3600)
+                    
+                    if inactive_days >= self.monitor_config['inactive_threshold']:
+                        # 检查通知冷却
+                        last_notified = self.get_last_notification(notification_data, group_id, user_id)
+                        if last_notified and (current_time - last_notified) < self.monitor_config['notify_cooldown'] * 24 * 3600:
+                            continue
+                            
+                        # 发送通知
+                        await self.send_inactive_notification(user_id, int(inactive_days), member_data["name"])
+                        
+                        # 记录通知时间
+                        self.record_notification(notification_data, group_id, user_id, current_time)
+                        logger.info(f"发送不活跃通知: 群{group_id} 用户{user_id} 不活跃{int(inactive_days)}天")
+            
+            # 保存通知记录
+            await self.save_notification_data(notification_data)
+            
+        except Exception as e:
+            logger.error(f"检查不活跃用户失败: {e}")
+
+    async def send_inactive_notification(self, user_id: str, inactive_days: int, user_name: str):
+        """发送不活跃通知私聊"""
+        try:
+            # 生成个性化的通知消息
+            notification_msg = self.generate_notification_message(inactive_days, user_name)
+            
+            # 这里需要根据AstrBot的实际API实现私聊发送
+            # 示例：await self.context.bot.send_private_msg(user_id=user_id, message=notification_msg)
+            
+            # 临时使用日志记录代替实际发送
+            logger.info(f"【私聊通知】用户{user_id}({user_name}): {notification_msg}")
+            
+        except Exception as e:
+            logger.error(f"发送私聊通知失败: {e}")
+
+    def generate_notification_message(self, inactive_days: int, user_name: str) -> str:
+        """生成不活跃通知消息"""
+        if inactive_days <= 7:
+            return (
+                f"👋 {user_name}，好久不见！\n"
+                f"注意到您已经{inactive_days}天没有在群里发言了。\n"
+                f"快来群里和大家打个招呼吧，大家都想您了！💝"
+            )
+        elif inactive_days <= 14:
+            return (
+                f"🌻 {user_name}，想念您的发言！\n"
+                f"您已经{inactive_days}天没有在群里活跃了。\n"
+                f"群里最近有很多有趣的讨论，快来参与吧！✨"
+            )
+        else:
+            return (
+                f"🌟 {user_name}，特别提醒！\n"
+                f"您已经{inactive_days}天没有在群里发言了。\n"
+                f"我们很重视每一位成员，希望您能继续参与群内交流。\n"
+                f"如果有任何问题或建议，也欢迎随时提出！🤗"
+            )
+
+    async def get_notification_data(self) -> dict:
+        """获取通知记录数据"""
+        data_str = await self.context.storage.get(self.notification_key)
+        return json.loads(data_str) if data_str else {}
+
+    async def save_notification_data(self, data: dict):
+        """保存通知记录数据"""
+        await self.context.storage.set(self.notification_key, json.dumps(data))
+
+    def get_last_notification(self, notification_data: dict, group_id: str, user_id: str) -> float:
+        """获取上次通知时间"""
+        if group_id in notification_data and user_id in notification_data[group_id]:
+            return notification_data[group_id][user_id]
+        return 0
+
+    def record_notification(self, notification_data: dict, group_id: str, user_id: str, timestamp: float):
+        """记录通知时间"""
+        if group_id not in notification_data:
+            notification_data[group_id] = {}
+        notification_data[group_id][user_id] = timestamp
+
+    # ===== 原有辅助方法 =====
     
     async def get_activity_data(self, group_id: str, create_if_missing: bool = False) -> dict:
         """获取活跃度数据"""
@@ -169,15 +312,14 @@ class GroupActivityPlugin(Star):
     
     async def save_activity_data(self, activity_data: dict):
         """保存单个群的活跃度数据"""
-        # 需要先获取所有数据，更新后再保存
         data_str = await self.context.storage.get(self.storage_key)
         all_data = json.loads(data_str) if data_str else {}
         
-        # 更新group_name（如果群名发生变化）
-        if activity_data.get("members"):
-            # 假设第一个成员的数据中有群ID
-            group_id = next(iter(activity_data["members"].values()))["group_id"]
-            all_data[group_id] = activity_data
+        # 找到对应的group_id
+        for gid, data in all_data.items():
+            if data.get("members") == activity_data.get("members"):
+                all_data[gid] = activity_data
+                break
         
         await self.save_all_data(all_data)
     
@@ -239,8 +381,17 @@ class GroupActivityPlugin(Star):
     
     def format_member_stats(self, member_data: dict, user_name: str) -> str:
         """格式化成员统计信息"""
+        # 计算不活跃天数
+        last_active = member_data.get("last_timestamp", 0)
+        inactive_days = 0
+        if last_active > 0:
+            inactive_days = int((time.time() - last_active) / (24 * 3600))
+        
+        status_emoji = "🎉" if inactive_days == 0 else "👍" if inactive_days < 3 else "💤"
+        
         return (
             f"👤 {user_name} 的活跃度统计：\n"
+            f"{status_emoji} 状态: {'今日活跃' if inactive_days == 0 else f'{inactive_days}天未发言'}\n"
             f"💬 今日发言: {member_data['today']} 次\n"
             f"📅 最后发言: {member_data['last_date']}\n"
             f"⏰ 加入群聊: {member_data['join_date']}\n"
