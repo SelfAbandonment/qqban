@@ -3,9 +3,11 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api import logger
 from datetime import datetime, timedelta
 import json
+import re
 import asyncio
 import time
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import AiocqhttpMessageEvent
+from enum import Enum
 
 @register("GroupActivity", "AstrBot助手", "群成员活跃度统计与监控插件", "1.1.0")
 class GroupActivityPlugin(Star):
@@ -34,15 +36,13 @@ class GroupActivityPlugin(Star):
         """插件销毁"""
         logger.info("群活跃度统计与监控插件已卸载")
 
-    # ===== 原有活跃度统计功能 =====
-    
+    # ===== 使用正确的事件过滤器 =====
+
+    # 活跃度统计命令 - 只在群聊中响应
     @filter.command("activity")
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def activity_command(self, event: AstrMessageEvent):
         """查询群成员活跃度排名"""
-        if not event.group:
-            yield event.plain_result("此功能仅在群聊中可用")
-            return
-        
         group_id = event.group.id
         args = event.message_str.split()[1:]  # 获取命令参数
         
@@ -63,13 +63,11 @@ class GroupActivityPlugin(Star):
         result = self.generate_ranking(activity_data, period, page)
         yield event.plain_result(result)
 
+    # 个人活跃度查询 - 只在群聊中响应
     @filter.command("myactivity")
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def myactivity_command(self, event: AstrMessageEvent):
         """查询我的活跃度"""
-        if not event.group:
-            yield event.plain_result("此功能仅在群聊中可用")
-            return
-        
         group_id = event.group.id
         user_id = event.sender.id
         
@@ -82,7 +80,9 @@ class GroupActivityPlugin(Star):
         result = self.format_member_stats(member_data, event.sender.name)
         yield event.plain_result(result)
 
+    # 清空数据命令 - 只在群聊中响应
     @filter.command("cleardata")
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def cleardata_command(self, event: AstrMessageEvent):
         """清空活跃度数据（管理员）"""
         if not await self.is_admin(event):
@@ -98,9 +98,9 @@ class GroupActivityPlugin(Star):
         await self.context.storage.delete(self.notification_key)
         yield event.plain_result("活跃度数据已清空")
 
-    # ===== 新增监控功能 =====
-    
+    # 监控配置命令 - 只在群聊中响应
     @filter.command("monitor_config")
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def monitor_config_command(self, event: AstrMessageEvent):
         """查看或设置监控配置（管理员）"""
         if not await self.is_admin(event):
@@ -135,13 +135,10 @@ class GroupActivityPlugin(Star):
             else:
                 yield event.plain_result(f"❌ 未知参数: {param}")
 
-    @filter.message()
-    async def handle_message(self, event: AstrMessageEvent):
-        """处理消息事件"""
-        # 只在群聊中记录
-        if not event.group:
-            return
-
+    # 消息事件处理 - 只处理群聊消息
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
+    async def handle_group_message(self, event: AstrMessageEvent):
+        """处理群消息事件"""
         group_id = event.group.id
         user_id = event.sender.id
         user_name = event.sender.name or str(user_id)
@@ -178,6 +175,8 @@ class GroupActivityPlugin(Star):
         
         # 里程碑检查（可选）
         await self.check_milestones(event, member, user_id)
+
+    # ===== 监控功能 =====
 
     async def monitor_inactive_users(self):
         """监控不活跃用户并发送通知"""
@@ -273,6 +272,8 @@ class GroupActivityPlugin(Star):
                 f"如果有任何问题或建议，也欢迎随时提出！🤗"
             )
 
+    # ===== 数据存储辅助方法 =====
+
     async def get_notification_data(self) -> dict:
         """获取通知记录数据"""
         data_str = await self.context.storage.get(self.notification_key)
@@ -294,8 +295,6 @@ class GroupActivityPlugin(Star):
             notification_data[group_id] = {}
         notification_data[group_id][user_id] = timestamp
 
-    # ===== 原有辅助方法 =====
-    
     async def get_activity_data(self, group_id: str, create_if_missing: bool = False) -> dict:
         """获取活跃度数据"""
         data_str = await self.context.storage.get(self.storage_key)
@@ -326,7 +325,9 @@ class GroupActivityPlugin(Star):
     async def save_all_data(self, all_data: dict):
         """保存所有群的活跃度数据"""
         await self.context.storage.set(self.storage_key, json.dumps(all_data))
-    
+
+    # ===== 统计和展示方法 =====
+
     def generate_ranking(self, activity_data: dict, period: str, page: int) -> str:
         """生成活跃度排名"""
         members = list(activity_data["members"].items())
@@ -401,34 +402,41 @@ class GroupActivityPlugin(Star):
     async def is_admin(self, event: AstrMessageEvent) -> bool:
         """检查是否是管理员"""
         # 根据实际平台API调整
-        return event.sender.role in ["admin", "owner"]
+        return hasattr(event.sender, 'role') and event.sender.role in ["admin", "owner"]
     
     async def check_milestones(self, event: AstrMessageEvent, member_data: dict, user_id: str):
         """检查里程碑"""
         milestones = [10, 50, 100, 500, 1000]
         if member_data["total"] in milestones:
             await event.reply(f"🎉 恭喜 {member_data['name']} 发言次数达到 {member_data['total']} 次！")
-    
-    # 时间处理辅助方法
+
+    # ===== 时间处理辅助方法 =====
+
     def is_this_week(self, date_str: str) -> bool:
         """检查日期是否在本周"""
-        date = datetime.strptime(date_str, "%Y-%m-%d")
-        now = datetime.now()
-        start_of_week = now - timedelta(days=now.weekday())
-        return date >= start_of_week
+        try:
+            date = datetime.strptime(date_str, "%Y-%m-%d")
+            now = datetime.now()
+            start_of_week = now - timedelta(days=now.weekday())
+            return date >= start_of_week
+        except:
+            return False
     
     def is_this_month(self, date_str: str) -> bool:
         """检查日期是否在本月"""
-        date = datetime.strptime(date_str, "%Y-%m-%d")
-        now = datetime.now()
-        return date.year == now.year and date.month == now.month
+        try:
+            date = datetime.strptime(date_str, "%Y-%m-%d")
+            now = datetime.now()
+            return date.year == now.year and date.month == now.month
+        except:
+            return False
     
     def get_this_week_count(self, member_data: dict) -> int:
         """获取本周发言次数（简化实现）"""
         # 实际实现需要更复杂的逻辑
-        return member_data["today"]  # 简化处理
+        return member_data.get("today", 0)
     
     def get_this_month_count(self, member_data: dict) -> int:
         """获取本月发言次数（简化实现）"""
         # 实际实现需要更复杂的逻辑
-        return member_data["today"]  # 简化处理
+        return member_data.get("today", 0)
