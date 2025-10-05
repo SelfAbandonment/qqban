@@ -43,7 +43,7 @@ class GroupActivityPlugin(Star):
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def activity_command(self, event: AstrMessageEvent):
         """查询群成员活跃度排名"""
-        group_id = event.get_group_id
+        group_id = event.get_group_id()
         args = event.message_str.split()[1:]  # 获取命令参数
         
         period = "今日"
