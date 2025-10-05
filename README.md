@@ -1,6 +1,6 @@
-# helloworld
+# QQ ban
 
-AstrBot 插件模板
+简单示例
 
 A template plugin for AstrBot plugin feature
 
