@@ -26,7 +26,7 @@
   "welcome_message": {
     "description": "验证成功提示语",
     "type": "string",
-    "default": "{at_user} 验证成功，欢迎你的加入！1.请仔细阅读群公告2.群文件下载整合包自带IP 3.白名单添加，群聊发送指令 “/绑定 您的ID”\n",
+    "default": "{at_user} 验证成功，欢迎你的加入！1.请仔细阅读群公告2.群文件下载整合包自带IP 3.白名单添加，群聊发送指令 “/绑定 您的ID”\n最后祝您玩得愉快",
     "hint": "用户验证成功后发送的消息。可用变量: {at_user}, {member_name}。"
   },
   "wrong_answer_prompt": {
@@ -54,3 +54,4 @@
     "hint": "用户被踢出后发送的公开消息。可用变量: {at_user}, {member_name}。"
   }
 }
+
