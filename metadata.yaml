@@ -1,5 +1,5 @@
-name: QQban # 这是你的插件的唯一识别名。
-desc: 简单代码。 # 插件简短描述
+name: QQVerify # 这是你的插件的唯一识别名。
+desc: 简单数学验证判断人机 # 插件简短描述
 version: v0.1 # 插件版本号。格式：v1.1.1 或者 v1.1
 author: SelfAbandonment # 作者
 repo: https://github.com/SelfAbandonment/qqban # 插件的仓库地址
