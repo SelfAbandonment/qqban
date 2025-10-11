@@ -23,6 +23,6 @@ class MyPlugin(Star):
         self.join = None
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def handle_event(self, event: AstrMessageEvent):
-        """处理群消息事件，并传递给子组件"""
+        """监听入群并且下发数字动态验证"""
         if self.join:
             await self.join.handle_event(event)
