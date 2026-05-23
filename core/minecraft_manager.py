@@ -25,20 +25,38 @@ def _to_bool(value: Any) -> bool:
     if isinstance(value, bool):
         return value
     if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "on", "enable", "enabled"}
+        return value.strip().lower() in {"1", "true", "yes", "on", "enable", "enabled", "启用", "开启", "是"}
     return bool(value)
+
+
+def _is_false_like(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, bool):
+        return not value
+    if isinstance(value, str):
+        return value.strip().lower() in {"0", "false", "no", "off", "disable", "disabled", "禁用", "关闭", "否"}
+    return not bool(value)
 
 
 class MinecraftManager:
     def __init__(self, context: Context, config: Dict[str, Any]):
         self.context = context
-        self.enabled = _to_bool(config.get("mc_rcon_enabled", False))
         self.rcon_ip = str(config.get("rcon_ip", "127.0.0.1"))
         self.rcon_port = int(config.get("rcon_port", 25575))
         self.rcon_password = str(config.get("rcon_password", ""))
         self.rcon_timeout = float(config.get("rcon_timeout", 5.0))
+        enabled_value = config.get("mc_rcon_enabled", config.get("rcon_enabled", None))
+        self.enabled = self._resolve_enabled(enabled_value)
         self.admin_qq = set(_to_str_list(config.get("mc_admin_qq", [])))
         self.target_umo: Optional[str] = None
+
+    def _resolve_enabled(self, enabled_value: Any) -> bool:
+        if _to_bool(enabled_value):
+            return True
+        if _is_false_like(enabled_value):
+            return False
+        return bool(self.rcon_password.strip())
 
     def is_admin(self, event: AstrMessageEvent) -> bool:
         try:

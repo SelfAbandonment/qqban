@@ -91,9 +91,9 @@
   },
   "mc_rcon_enabled": {
     "description": "是否启用 MC RCON 扩展",
-    "type": "bool",
-    "default": false,
-    "hint": "默认关闭。仅在需要 /tomc、/mcrestart、/myid 等 MC 扩展命令时开启。入群验证功能不依赖此配置。"
+    "type": "string",
+    "default": "false",
+    "hint": "默认关闭。可填 true/false、开启/关闭。仅在需要 /tomc、/mcrestart、/myid 等 MC 扩展命令时开启；如果已填写 rcon_password，也会自动视为启用。"
   },
   "rcon_ip": {
     "description": "MC RCON 地址",
