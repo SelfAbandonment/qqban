@@ -138,15 +138,14 @@ QQVerify 是一个 AstrBot 群成员入群验证插件。新成员入群后，�
 
 当前插件中还包含一个可选的 Minecraft RCON 扩展模块，用于 `/tomc`、`/mcrestart`、`/myid` 等命令。入群验证功能不依赖该模块。
 
-MC RCON 扩展默认关闭。如果不使用 MC 功能，不需要填写 RCON 配置，也不会主动连接 RCON。
+MC RCON 功能不会后台主动连接服务器，只有调用 `/tomc`、`/mcrestart` 等命令时才会尝试连接 RCON。
 
-如果已经填写 `rcon_password`，插件会自动视为启用 RCON 扩展；也可以显式设置 `mc_rcon_enabled` 为 `true` 或 `开启`。如果想关闭 MC 扩展，请清空 `rcon_password` 并将 `mc_rcon_enabled` 保持为 `false`。
+如果不使用 MC 功能，不需要填写 RCON 配置。使用 MC 功能时，请至少填写 `rcon_ip`、`rcon_port` 和 `rcon_password`。
 
 启用示例：
 
 ```json
 {
-  "mc_rcon_enabled": true,
   "rcon_ip": "127.0.0.1",
   "rcon_port": 25575,
   "rcon_password": "你的RCON密码",
@@ -156,7 +155,6 @@ MC RCON 扩展默认关闭。如果不使用 MC 功能，不需要填写 RCON �
 
 如果不使用 MC 功能，可以忽略以下配置：
 
-- `mc_rcon_enabled`
 - `rcon_ip`
 - `rcon_port`
 - `rcon_password`

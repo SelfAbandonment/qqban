@@ -21,14 +21,6 @@ def _to_str_list(value: Any) -> list[str]:
     return []
 
 
-def _to_bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.strip().lower() in {"1", "true", "yes", "on", "enable", "enabled", "启用", "开启", "是"}
-    return bool(value)
-
-
 class MinecraftManager:
     def __init__(self, context: Context, config: Dict[str, Any]):
         self.context = context
@@ -36,13 +28,8 @@ class MinecraftManager:
         self.rcon_port = int(config.get("rcon_port", 25575))
         self.rcon_password = str(config.get("rcon_password", ""))
         self.rcon_timeout = float(config.get("rcon_timeout", 5.0))
-        enabled_value = config.get("mc_rcon_enabled", config.get("rcon_enabled", None))
-        self.enabled = self._resolve_enabled(enabled_value)
         self.admin_qq = set(_to_str_list(config.get("mc_admin_qq", [])))
         self.target_umo: Optional[str] = None
-
-    def _resolve_enabled(self, enabled_value: Any) -> bool:
-        return _to_bool(enabled_value) or bool(self.rcon_password.strip())
 
     def is_admin(self, event: AstrMessageEvent) -> bool:
         try:
@@ -68,9 +55,6 @@ class MinecraftManager:
         return request_id, packet_type, payload
 
     async def execute_rcon(self, command: str) -> Tuple[bool, str]:
-        if not self.enabled:
-            return False, "MC RCON 扩展未启用"
-
         if not self.rcon_password:
             return False, "RCON 密码未配置"
 
@@ -135,9 +119,6 @@ class MinecraftManager:
         return MessageEventResult(chain=[Comp.Plain("OK")])
 
     async def restart_mc_server(self, event: AstrMessageEvent) -> MessageEventResult:
-        if not self.enabled:
-            return MessageEventResult(chain=[Comp.Plain("MC RCON 扩展未启用")])
-
         if not self.is_admin(event):
             return MessageEventResult(chain=[Comp.Plain("您没有权限执行此操作")])
 
@@ -154,7 +135,7 @@ class MinecraftManager:
             Comp.Plain("=== 账户信息 ===\n"),
             Comp.Plain(f"QQ号: {qq_id}\n"),
             Comp.Plain(f"身份: {'管理员' if is_admin else '普通用户'}\n"),
-            Comp.Plain(f"MC RCON: {'已启用' if self.enabled else '未启用'}\n"),
+            Comp.Plain(f"MC RCON: {'已配置' if self.rcon_password else '未配置'}\n"),
             Comp.Plain(f"当前群绑定状态: {'已绑定' if self.target_umo else '未绑定 (请发送 /tomc 激活)'}"),
         ]
         return result

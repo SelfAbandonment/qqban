@@ -89,12 +89,6 @@
     "default": "{at_user} 因未在规定时间内完成验证，已被请出本群。",
     "hint": "用户被踢出后发送的公开消息。可用变量: {at_user}, {member_name}。"
   },
-  "mc_rcon_enabled": {
-    "description": "是否启用 MC RCON 扩展",
-    "type": "string",
-    "default": "false",
-    "hint": "默认关闭。可填 true/false、开启/关闭。仅在需要 /tomc、/mcrestart、/myid 等 MC 扩展命令时开启；如果已填写 rcon_password，也会自动视为启用。"
-  },
   "rcon_ip": {
     "description": "MC RCON 地址",
     "type": "string",
