@@ -13,6 +13,7 @@
 - 新增验证难度配置 `verification_difficulty`，支持 `easy`、`normal`、`hard`。
 - 新增验证消息发送模式 `verification_message_mode`，支持 `group`、`private`、`hybrid`。
 - 新增私聊验证支持，用户可以在私聊中直接回复答案完成验证。
+- 新增 NapCat/OneBot 群临时会话发送尝试，私聊验证使用带 `group_id` 的 `send_private_msg`。
 - 新增私聊发送失败回退提示 `private_message_failed_prompt`。
 - 新增私聊验证群内提示 `private_verification_notice_prompt`。
 - 新增答错次数过多提示 `wrong_answer_limit_prompt`。
@@ -20,7 +21,6 @@
 - 新增可选 Minecraft RCON 扩展模块，提供 `/tomc`、`/mcrestart`、`/myid` 命令。
 - 新增 MC RCON 配置读取兼容，支持 `rcon_password`、`RCON_PASSWORD`、`mc_rcon_password` 等字段名。
 - 新增本地 `rcon_config.json` 兜底配置读取，并将该文件加入 `.gitignore`，避免 RCON 密码被提交。
-- 新增 `/qqverify_reload` 命令，可在运行时重新读取 AstrBot 配置和本地 RCON 配置。
 - 新增通用配置读取工具，入群验证和 MC RCON 模块共用同一套配置解析逻辑。
 - 新增 MCSM outputlog 轮询监听，可从实例控制台输出中提取玩家聊天并转发到 QQ。
 
@@ -41,7 +41,6 @@
 - MC RCON 命令不再被启用开关拦截；调用 `/tomc` 或 `/mcrestart` 时会直接根据 RCON 配置尝试连接，未填写密码时提示 `RCON 密码未配置`。
 - MC RCON 初始化时会输出不包含密码内容的配置状态日志，便于排查配置是否被插件读取。
 - MC RCON 配置读取支持嵌套配置对象以及 `{"value": "..."}` 结构，兼容更多 AstrBot 配置保存形态。
-- 入群验证配置现在也支持运行时重载，重载不会清空正在验证的用户状态。
 - MCSM 聊天监听启动后会先建立日志游标，避免首次启动时刷屏旧日志。
 
 ### 验证

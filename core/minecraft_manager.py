@@ -100,7 +100,7 @@ class MinecraftManager:
 
     async def execute_rcon(self, command: str) -> Tuple[bool, str]:
         if not self.rcon_password:
-            return False, "RCON 密码未配置，请检查 rcon_password 或 RCON_PASSWORD 配置后重载插件"
+            return False, "RCON 密码未配置，请检查 rcon_password 或 RCON_PASSWORD 配置后重启插件或 AstrBot"
 
         writer: Optional[asyncio.StreamWriter] = None
         try:

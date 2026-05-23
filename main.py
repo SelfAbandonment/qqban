@@ -1,6 +1,5 @@
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
+from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.star import Context, Star, register
-import astrbot.api.message_components as Comp
 from .core.join_head import QQGroupVerifyPlugin
 from .core.minecraft_manager import MinecraftManager
 
@@ -57,20 +56,6 @@ class MyPlugin(Star):
         """显示账户信息。"""
         if self.minecraft:
             yield self.minecraft.account_info(event)
-
-    @filter.command("qqverify_reload")
-    async def reload_plugin_config(self, event: AstrMessageEvent):
-        """重新读取插件配置。"""
-        if self.minecraft and self.minecraft.admin_qq and not self.minecraft.is_admin(event):
-            yield MessageEventResult(chain=[Comp.Plain("您没有权限执行此操作")])
-            return
-
-        config = self._load_config()
-        if self.join and hasattr(self.join, 'reload_config'):
-            self.join.reload_config(config)
-        if self.minecraft and hasattr(self.minecraft, 'reload_config'):
-            self.minecraft.reload_config(config)
-        yield MessageEventResult(chain=[Comp.Plain("QQVerify 配置已重新读取")])
 
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def handle_event(self, event: AstrMessageEvent):

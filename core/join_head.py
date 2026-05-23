@@ -271,20 +271,26 @@ class QQGroupVerifyPlugin:
             await bot.api.call_action("send_group_msg", group_id=gid, message=group_prompt)
             return
 
-        try:
-            await bot.api.call_action("send_private_msg", user_id=int(uid), message=private_prompt)
+        if await self._try_send_private_verification(bot, uid, gid, private_prompt):
             if is_new_member:
                 notice_msg = _safe_format(self.private_verification_notice_prompt, **format_args)
                 await bot.api.call_action("send_group_msg", group_id=gid, message=notice_msg)
             return
-        except Exception as exc:
-            logger.warning(f"[QQ Verify] 向用户 {uid} 发送私聊验证失败: {exc}")
-            if mode == "private":
-                failed_msg = _safe_format(self.private_message_failed_prompt, **format_args)
-                await bot.api.call_action("send_group_msg", group_id=gid, message=failed_msg)
-                return
+
+        if mode == "private":
+            failed_msg = _safe_format(self.private_message_failed_prompt, **format_args)
+            await bot.api.call_action("send_group_msg", group_id=gid, message=failed_msg)
+            return
 
         await bot.api.call_action("send_group_msg", group_id=gid, message=group_prompt)
+
+    async def _try_send_private_verification(self, bot, uid: str, gid: Any, message: str) -> bool:
+        try:
+            await bot.api.call_action("send_private_msg", user_id=int(uid), group_id=int(gid), message=message)
+            return True
+        except Exception as exc:
+            logger.warning(f"[QQ Verify] 向用户 {uid} 发送群临时会话验证失败: {exc}")
+            return False
 
     async def _process_group_verification_message(self, event: AstrMessageEvent):
         """处理群消息以进行验证"""
@@ -320,9 +326,6 @@ class QQGroupVerifyPlugin:
             return
 
         if len(keys) > 1:
-            bot = self._get_bot(event)
-            if bot:
-                await bot.api.call_action("send_private_msg", user_id=int(uid), message="你当前在多个群有待验证记录，请回到对应群里 @我 回答。")
             event.stop_event()
             return
 

@@ -64,19 +64,11 @@ QQVerify 是一个 AstrBot 群成员入群验证插件。新成员入群后，�
 }
 ```
 
-`hybrid` 会优先私聊发送验证题；如果私聊失败，会自动回退到群内发送验证题。
+`hybrid` 会优先私聊发送验证题；如果私聊失败，会自动回退到群内发送验证题。使用 NapCat/OneBot 时，插件会尝试带 `group_id` 的私聊发送，以利用群临时会话能力。
 
 ## 配置说明
 
-修改配置后，可以发送以下命令让插件重新读取 AstrBot 配置和本地兜底配置：
-
-```text
-/qqverify_reload
-```
-
-如果已配置 `mc_admin_qq`，该命令仅允许白名单用户执行；如果管理员列表尚未读取成功，则允许执行，方便修复配置。
-
-插件按照 AstrBot 官方配置方式读取配置：AstrBot 会根据 [_conf_schema.json](_conf_schema.json) 生成配置文件，并在插件实例化时传入配置对象。`/qqverify_reload` 会基于当前配置对象重新刷新运行时参数。
+插件按照 AstrBot 官方配置方式读取配置：AstrBot 会根据 [_conf_schema.json](_conf_schema.json) 生成配置文件，并在插件实例化时传入配置对象。修改配置后，请重启插件或 AstrBot 让新配置生效。
 
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
@@ -100,8 +92,8 @@ QQVerify 是一个 AstrBot 群成员入群验证插件。新成员入群后，�
 | 模式 | 说明 |
 | --- | --- |
 | `group` | 在群内发送验证题，用户需要在群内 `@Bot 答案`。兼容性最好。 |
-| `private` | 私聊发送验证题，群内只发送提示。若私聊失败，会在群内发送回退题目。 |
-| `hybrid` | 优先私聊发送验证题，失败后自动回退群内发送。推荐想减少群内刷屏的群使用。 |
+| `private` | 私聊发送验证题，群内只发送提示。若私聊失败，会在群内发送回退题目。NapCat/OneBot 下会尝试带 `group_id` 的群临时会话。 |
+| `hybrid` | 优先私聊发送验证题，失败后自动回退群内发送。推荐想减少群内刷屏的群使用。NapCat/OneBot 下会尝试带 `group_id` 的群临时会话。 |
 
 ## 消息模板变量
 
@@ -140,7 +132,7 @@ QQVerify 是一个 AstrBot 群成员入群验证插件。新成员入群后，�
 ## 注意事项
 
 - 群内验证时，用户需要 `@Bot` 并发送答案，避免普通聊天中的数字误触发验证。
-- 私聊验证时，如果用户关闭临时会话或平台不允许 Bot 私聊，可能发送失败。建议使用 `hybrid` 模式。
+- 私聊验证时，插件会尝试 NapCat/OneBot 带 `group_id` 的群临时会话；如果用户关闭临时会话、平台限制主动私聊或协议端拒绝发送，仍可能失败。建议使用 `hybrid` 模式。
 - 自动踢人需要 Bot 是群管理员，否则插件只能发送提示，无法完成踢出动作。
 - 插件重启后，内存中的待验证状态不会恢复。正在验证中的用户可能需要重新触发验证流程。
 - 入群验证依赖平台上报 `group_increase` 通知。OneBot/aiocqhttp 需要确保连接端能上报群成员增加 notice 事件。
@@ -157,7 +149,7 @@ MC RCON 功能不会后台主动连接服务器，只有调用 `/tomc`、`/mcres
 
 如果不使用 MC 功能，不需要填写 RCON 配置。使用 MC 功能时，请至少填写 `rcon_ip`、`rcon_port` 和 `rcon_password`。
 
-兼容旧配置字段名：`RCON_IP`、`RCON_PORT`、`RCON_PASSWORD`、`RCON_TIMEOUT`、`ADMIN_QQ`。如果日志仍提示密码未配置，请重载插件后查看启动日志中的 `[MC RCON] 配置状态`，确认 `password` 是否显示为 `已配置`。
+兼容旧配置字段名：`RCON_IP`、`RCON_PORT`、`RCON_PASSWORD`、`RCON_TIMEOUT`、`ADMIN_QQ`。如果日志仍提示密码未配置，请重启插件或 AstrBot 后查看启动日志中的 `[MC RCON] 配置状态`，确认 `password` 是否显示为 `已配置`。
 
 如果 AstrBot 配置没有传入插件，也可以在插件目录新建 `rcon_config.json` 作为兜底配置。该文件已加入 `.gitignore`，不要提交到仓库：
 
@@ -170,7 +162,7 @@ MC RCON 功能不会后台主动连接服务器，只有调用 `/tomc`、`/mcres
 }
 ```
 
-创建或修改该文件后，可以发送 `/qqverify_reload` 重新读取配置，不必重启 AstrBot。重载成功后，日志中应显示：
+创建或修改该文件后，请重启插件或 AstrBot 重新读取配置。启动日志中应显示：
 
 ```text
 [Config] 已加载本地配置文件: rcon_config.json
