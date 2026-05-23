@@ -72,8 +72,7 @@ class MyPlugin(Star):
             self.minecraft.reload_config(config)
         yield MessageEventResult(chain=[Comp.Plain("QQVerify 配置已重新读取")])
 
-    @filter.event_message_type(filter.EventMessageType.PRIVATE_MESSAGE)
-    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
+    @filter.event_message_type(filter.EventMessageType.ALL)
     async def handle_event(self, event: AstrMessageEvent):
         """监听入群并且下发数字动态验证"""
         if self.join:

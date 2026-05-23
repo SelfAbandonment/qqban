@@ -35,7 +35,7 @@
 ### 变更
 
 - 插件入口改为 AstrBot 官方配置注入写法：`__init__(self, context, config)`，避免运行时读取不到 WebUI 配置。
-- 主插件入口现在同时监听群消息和私聊消息，以支持私聊验证作答。
+- 主插件入口改为 `EventMessageType.ALL`，避免多个消息类型过滤器 AND 逻辑导致入群 notice、群消息、私聊消息都无法进入验证模块。
 - RCON 密码改为通过配置项 `rcon_password` 提供，不再建议硬编码到源码中。
 - MC RCON 发送失败时会返回具体原因，例如未启用、未配置密码、认证失败或连接异常。
 - MC RCON 命令不再被启用开关拦截；调用 `/tomc` 或 `/mcrestart` 时会直接根据 RCON 配置尝试连接，未填写密码时提示 `RCON 密码未配置`。
