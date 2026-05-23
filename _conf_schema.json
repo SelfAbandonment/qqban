@@ -17,6 +17,24 @@
     "default": 5,
     "hint": "发送“验证超时”消息后，等待多少秒再执行踢人操作。默认 5 秒。"
   },
+  "max_wrong_attempts": {
+    "description": "最大答错次数",
+    "type": "int",
+    "default": 3,
+    "hint": "用户连续答错达到该次数后直接进入踢出流程。设为 0 表示不限制。"
+  },
+  "verification_difficulty": {
+    "description": "验证题难度",
+    "type": "string",
+    "default": "normal",
+    "hint": "可选值: easy, normal, hard。easy 只出简单加减法，normal 出加减除法，hard 额外包含乘法和数列。"
+  },
+  "verification_message_mode": {
+    "description": "验证消息发送模式",
+    "type": "string",
+    "default": "group",
+    "hint": "可选值: group, private, hybrid。group 在群内发题，private 私聊发题并在群内提示，hybrid 优先私聊失败后回退群内发题。"
+  },
   "new_member_prompt": {
     "description": "新成员入群提示语",
     "type": "string",
@@ -33,7 +51,25 @@
     "description": "答案错误提示语",
     "type": "string",
     "default": "{at_user} 答案错误，请重新回答验证。这是你的新问题：\n{question}",
-    "hint": "用户回答错误后发送的消息，之后会自动生成新问题。可用变量: {at_user}, {question}。"
+    "hint": "用户回答错误后发送的消息，之后会自动生成新问题。可用变量: {at_user}, {question}, {wrong_attempts}, {remaining_attempts}。"
+  },
+  "wrong_answer_limit_prompt": {
+    "description": "答错次数过多提示语",
+    "type": "string",
+    "default": "{at_user} 答案错误次数过多，你将在 {countdown} 秒后被请出本群。",
+    "hint": "用户答错次数达到上限后发送的提示。可用变量: {at_user}, {member_name}, {countdown}, {max_wrong_attempts}。"
+  },
+  "private_verification_notice_prompt": {
+    "description": "私聊验证群内提示语",
+    "type": "string",
+    "default": "{at_user} 验证题已通过私聊发送，请在 {timeout} 分钟内完成验证。",
+    "hint": "私聊发送验证题成功后，在群内发送的提示。可用变量: {at_user}, {member_name}, {timeout}。"
+  },
+  "private_message_failed_prompt": {
+    "description": "私聊发送失败提示语",
+    "type": "string",
+    "default": "{at_user} 私聊发送失败，请在群内 @我 回答下面的问题完成验证：\n{question}",
+    "hint": "private 模式私聊发送失败后，在群内发送的回退提示。可用变量: {at_user}, {member_name}, {question}, {timeout}。"
   },
   "countdown_warning_prompt": {
     "description": "超时警告提示语",
@@ -52,6 +88,36 @@
     "type": "string",
     "default": "{at_user} 因未在规定时间内完成验证，已被请出本群。",
     "hint": "用户被踢出后发送的公开消息。可用变量: {at_user}, {member_name}。"
+  },
+  "rcon_ip": {
+    "description": "MC RCON 地址",
+    "type": "string",
+    "default": "127.0.0.1",
+    "hint": "Minecraft 服务端 RCON 的 IP 或域名。"
+  },
+  "rcon_port": {
+    "description": "MC RCON 端口",
+    "type": "int",
+    "default": 25575,
+    "hint": "Minecraft 服务端 server.properties 中配置的 rcon.port。"
+  },
+  "rcon_password": {
+    "description": "MC RCON 密码",
+    "type": "string",
+    "default": "",
+    "hint": "Minecraft 服务端 server.properties 中配置的 rcon.password。"
+  },
+  "rcon_timeout": {
+    "description": "MC RCON 超时时间（秒）",
+    "type": "float",
+    "default": 5.0,
+    "hint": "连接、认证、执行 RCON 命令时的超时时间。"
+  },
+  "mc_admin_qq": {
+    "description": "MC 管理员 QQ 白名单",
+    "type": "string",
+    "default": "",
+    "hint": "允许执行 /mcrestart 的 QQ 号，多个 QQ 用英文逗号分隔。"
   }
 }
 
