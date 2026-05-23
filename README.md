@@ -142,6 +142,8 @@ MC RCON 功能不会后台主动连接服务器，只有调用 `/tomc`、`/mcres
 
 如果不使用 MC 功能，不需要填写 RCON 配置。使用 MC 功能时，请至少填写 `rcon_ip`、`rcon_port` 和 `rcon_password`。
 
+兼容旧配置字段名：`RCON_IP`、`RCON_PORT`、`RCON_PASSWORD`、`RCON_TIMEOUT`、`ADMIN_QQ`。如果日志仍提示密码未配置，请重载插件后查看启动日志中的 `[MC RCON] 配置状态`，确认 `password` 是否显示为 `已配置`。
+
 启用示例：
 
 ```json

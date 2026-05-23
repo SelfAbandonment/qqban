@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 import struct
 from typing import Any, Dict, Iterable, Optional, Tuple
 
@@ -21,15 +22,59 @@ def _to_str_list(value: Any) -> list[str]:
     return []
 
 
+def _unwrap_config_value(value: Any) -> Any:
+    if hasattr(value, "value"):
+        return getattr(value, "value")
+    return value
+
+
+def _is_empty_config_value(value: Any) -> bool:
+    return value is None or str(value).strip() in {"", "None", "null"}
+
+
+def _config_get(config: Dict[str, Any], keys: list[str], default: Any = None) -> Any:
+    for key in keys:
+        value = None
+        found = False
+
+        if hasattr(config, "get"):
+            value = config.get(key, None)
+            found = value is not None
+
+        if not found and isinstance(config, dict) and key in config:
+            value = config[key]
+            found = True
+
+        if not found and hasattr(config, key):
+            value = getattr(config, key)
+            found = True
+
+        value = _unwrap_config_value(value)
+        if found and not _is_empty_config_value(value):
+            return value
+
+        env_value = os.getenv(key)
+        if not _is_empty_config_value(env_value):
+            return env_value
+
+    return default
+
+
 class MinecraftManager:
     def __init__(self, context: Context, config: Dict[str, Any]):
         self.context = context
-        self.rcon_ip = str(config.get("rcon_ip", "127.0.0.1"))
-        self.rcon_port = int(config.get("rcon_port", 25575))
-        self.rcon_password = str(config.get("rcon_password", ""))
-        self.rcon_timeout = float(config.get("rcon_timeout", 5.0))
-        self.admin_qq = set(_to_str_list(config.get("mc_admin_qq", [])))
+        self.rcon_ip = str(_config_get(config, ["rcon_ip", "RCON_IP", "mc_rcon_ip"], "127.0.0.1"))
+        self.rcon_port = int(_config_get(config, ["rcon_port", "RCON_PORT", "mc_rcon_port"], 25575))
+        self.rcon_password = str(_config_get(config, ["rcon_password", "RCON_PASSWORD", "mc_rcon_password"], ""))
+        self.rcon_timeout = float(_config_get(config, ["rcon_timeout", "RCON_TIMEOUT", "mc_rcon_timeout"], 5.0))
+        self.admin_qq = set(_to_str_list(_config_get(config, ["mc_admin_qq", "ADMIN_QQ", "admin_qq"], [])))
         self.target_umo: Optional[str] = None
+        logger.info(
+            "[MC RCON] 配置状态: "
+            f"ip={self.rcon_ip}, port={self.rcon_port}, "
+            f"password={'已配置' if self.rcon_password else '未配置'}, "
+            f"admin_count={len(self.admin_qq)}"
+        )
 
     def is_admin(self, event: AstrMessageEvent) -> bool:
         try:
@@ -56,7 +101,7 @@ class MinecraftManager:
 
     async def execute_rcon(self, command: str) -> Tuple[bool, str]:
         if not self.rcon_password:
-            return False, "RCON 密码未配置"
+            return False, "RCON 密码未配置，请检查 rcon_password 或 RCON_PASSWORD 配置后重载插件"
 
         writer: Optional[asyncio.StreamWriter] = None
         try:
