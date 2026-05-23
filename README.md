@@ -140,7 +140,7 @@ QQVerify 是一个 AstrBot 群成员入群验证插件。新成员入群后，�
 
 MC RCON 扩展默认关闭。如果不使用 MC 功能，不需要填写 RCON 配置，也不会主动连接 RCON。
 
-如果已经填写 `rcon_password`，插件会自动视为启用 RCON 扩展；也可以显式设置 `mc_rcon_enabled` 为 `true` 或 `开启`。
+如果已经填写 `rcon_password`，插件会自动视为启用 RCON 扩展；也可以显式设置 `mc_rcon_enabled` 为 `true` 或 `开启`。如果想关闭 MC 扩展，请清空 `rcon_password` 并将 `mc_rcon_enabled` 保持为 `false`。
 
 启用示例：
 
