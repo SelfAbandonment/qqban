@@ -146,7 +146,11 @@ QQVerify 是一个 AstrBot 群成员入群验证插件。新成员入群后，�
 
 ## 可选 MC 扩展
 
-当前插件中还包含一个可选的 Minecraft RCON 扩展模块，用于 `/tomc`、`/mcrestart`、`/myid` 等命令。入群验证功能不依赖该模块。
+当前插件中还包含可选的 Minecraft 扩展能力。入群验证功能不依赖这些模块。
+
+### QQ 到 MC
+
+RCON 用于 `/tomc`、`/mcrestart`、`/myid` 等命令。
 
 MC RCON 功能不会后台主动连接服务器，只有调用 `/tomc`、`/mcrestart` 等命令时才会尝试连接 RCON。
 
@@ -190,6 +194,46 @@ MC RCON 功能不会后台主动连接服务器，只有调用 `/tomc`、`/mcres
 - `rcon_password`
 - `rcon_timeout`
 - `mc_admin_qq`
+
+### MC 到 QQ
+
+如果服务器由 MCSManager 管理，可以启用 MCSM 输出日志轮询。插件会定时调用：
+
+```text
+GET /api/protected_instance/outputlog
+```
+
+然后从实例控制台输出中匹配玩家聊天行，例如：
+
+```text
+[Server thread/INFO]: <Steve> hello
+```
+
+转发为：
+
+```text
+[服内] Steve: hello
+```
+
+配置示例：
+
+```json
+{
+  "mcsm_chat_enabled": true,
+  "mcsm_base_url": "http://127.0.0.1:23333",
+  "mcsm_api_key": "你的MCSM API Key",
+  "mcsm_instance_uuid": "实例UUID",
+  "mcsm_daemon_id": "Daemon ID",
+  "mcsm_output_size": 64,
+  "mcsm_poll_interval": 2.0
+}
+```
+
+转发目标优先使用 `/tomc` 最近绑定过的会话。也就是说，先在目标群里发送一次 `/tomc 测试`，之后服内聊天会转发到这个群。
+
+如果没有绑定会话，可以配置 `mcsm_forward_group` 作为默认群号；但该方式需要 Bot 运行时已经拿到平台实例，稳定性不如 `/tomc` 绑定。
+
+注意：监听任务启动后第一次拉取日志只会建立游标，不会把旧日志全部刷到 QQ；之后只转发新增聊天。
 
 ## 相关链接
 

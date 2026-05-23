@@ -117,3 +117,16 @@ def config_float(configs: list[Any], keys: list[str], default: float) -> float:
         return float(config_get(configs, keys, default))
     except (TypeError, ValueError):
         return default
+
+
+def config_bool(configs: list[Any], keys: list[str], default: bool = False) -> bool:
+    value = config_get(configs, keys, default)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        value_text = value.strip().lower()
+        if value_text in {"1", "true", "yes", "on", "enable", "enabled", "启用", "开启", "是"}:
+            return True
+        if value_text in {"0", "false", "no", "off", "disable", "disabled", "禁用", "关闭", "否"}:
+            return False
+    return bool(value)

@@ -118,6 +118,54 @@
     "type": "string",
     "default": "",
     "hint": "允许执行 /mcrestart 的 QQ 号，多个 QQ 用英文逗号分隔。"
+  },
+  "mcsm_chat_enabled": {
+    "description": "启用 MCSM 聊天监听",
+    "type": "bool",
+    "default": false,
+    "hint": "启用后定时调用 MCSM outputlog API，从实例控制台输出中提取玩家聊天并转发到 QQ。"
+  },
+  "mcsm_base_url": {
+    "description": "MCSM 面板地址",
+    "type": "string",
+    "default": "",
+    "hint": "例如 http://127.0.0.1:23333，不要以 / 结尾。"
+  },
+  "mcsm_api_key": {
+    "description": "MCSM API Key",
+    "type": "string",
+    "default": "",
+    "hint": "调用 /api/protected_instance/outputlog 时使用的 apikey。"
+  },
+  "mcsm_instance_uuid": {
+    "description": "MCSM 实例 UUID",
+    "type": "string",
+    "default": "",
+    "hint": "outputlog 接口 query 参数 uuid。"
+  },
+  "mcsm_daemon_id": {
+    "description": "MCSM Daemon ID",
+    "type": "string",
+    "default": "",
+    "hint": "outputlog 接口 query 参数 daemonId。"
+  },
+  "mcsm_output_size": {
+    "description": "MCSM 日志拉取大小 KB",
+    "type": "int",
+    "default": 64,
+    "hint": "outputlog 接口 size 参数，建议 16~128。"
+  },
+  "mcsm_poll_interval": {
+    "description": "MCSM 轮询间隔（秒）",
+    "type": "float",
+    "default": 2.0,
+    "hint": "定时拉取控制台输出的间隔，最小按 1 秒处理。"
+  },
+  "mcsm_forward_group": {
+    "description": "MCSM 默认转发群号",
+    "type": "string",
+    "default": "",
+    "hint": "未通过 /tomc 绑定群聊时，可尝试使用该群号转发；需要 Bot 实例已在运行时绑定。"
   }
 }
 

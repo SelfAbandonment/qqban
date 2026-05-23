@@ -1,13 +1,17 @@
 import asyncio
 import json
+import re
 import struct
+import urllib.parse
+import urllib.request
+from collections import deque
 from typing import Any, Dict, Iterable, Optional, Tuple
 
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, MessageEventResult
 import astrbot.api.message_components as Comp
 from astrbot.api.star import Context
-from .config_utils import config_float, config_get, config_int, config_str, load_json_config
+from .config_utils import config_bool, config_float, config_get, config_int, config_str, load_json_config
 
 
 SERVERDATA_AUTH = 3
@@ -26,6 +30,10 @@ class MinecraftManager:
     def __init__(self, context: Context, config: Dict[str, Any]):
         self.context = context
         self.target_umo: Optional[str] = None
+        self.bound_bot = None
+        self.mcsm_monitor_task: Optional[asyncio.Task] = None
+        self.mcsm_last_output = ""
+        self.mcsm_recent_chat_lines = deque(maxlen=200)
         self.reload_config(config)
 
     def reload_config(self, config: Dict[str, Any]):
@@ -36,12 +44,36 @@ class MinecraftManager:
         self.rcon_password = config_str(configs, ["rcon_password", "RCON_PASSWORD", "mc_rcon_password"], "")
         self.rcon_timeout = config_float(configs, ["rcon_timeout", "RCON_TIMEOUT", "mc_rcon_timeout"], 5.0)
         self.admin_qq = set(_to_str_list(config_get(configs, ["mc_admin_qq", "ADMIN_QQ", "admin_qq"], [])))
+        self.mcsm_chat_enabled = config_bool(configs, ["mcsm_chat_enabled", "MCSM_CHAT_ENABLED"], False)
+        self.mcsm_base_url = config_str(configs, ["mcsm_base_url", "MCSM_BASE_URL"], "").rstrip("/")
+        self.mcsm_api_key = config_str(configs, ["mcsm_api_key", "MCSM_API_KEY"], "")
+        self.mcsm_instance_uuid = config_str(configs, ["mcsm_instance_uuid", "MCSM_INSTANCE_UUID", "mcsm_uuid"], "")
+        self.mcsm_daemon_id = config_str(configs, ["mcsm_daemon_id", "MCSM_DAEMON_ID", "daemonId"], "")
+        self.mcsm_output_size = config_int(configs, ["mcsm_output_size", "MCSM_OUTPUT_SIZE"], 64)
+        self.mcsm_poll_interval = max(config_float(configs, ["mcsm_poll_interval", "MCSM_POLL_INTERVAL"], 2.0), 1.0)
+        self.mcsm_forward_group = config_str(configs, ["mcsm_forward_group", "MCSM_FORWARD_GROUP"], "")
         logger.info(
             "[MC RCON] 配置状态: "
             f"ip={self.rcon_ip}, port={self.rcon_port}, "
             f"password={'已配置' if self.rcon_password else '未配置'}, "
             f"admin_count={len(self.admin_qq)}"
         )
+        logger.info(
+            "[MCSM Chat] 配置状态: "
+            f"enabled={self.mcsm_chat_enabled}, base_url={'已配置' if self.mcsm_base_url else '未配置'}, "
+            f"uuid={'已配置' if self.mcsm_instance_uuid else '未配置'}, "
+            f"daemon_id={'已配置' if self.mcsm_daemon_id else '未配置'}"
+        )
+        self._sync_mcsm_monitor_task()
+
+    def _sync_mcsm_monitor_task(self):
+        if self.mcsm_chat_enabled:
+            if not self.mcsm_monitor_task or self.mcsm_monitor_task.done():
+                self.mcsm_monitor_task = asyncio.create_task(self._mcsm_chat_monitor_loop())
+                logger.info("[MCSM Chat] 监听任务已启动")
+        elif self.mcsm_monitor_task and not self.mcsm_monitor_task.done():
+            self.mcsm_monitor_task.cancel()
+            logger.info("[MCSM Chat] 监听任务已停止")
 
     def is_admin(self, event: AstrMessageEvent) -> bool:
         try:
@@ -102,6 +134,7 @@ class MinecraftManager:
 
     async def send_to_mc(self, event: AstrMessageEvent, text: str) -> Optional[MessageEventResult]:
         self.target_umo = event.unified_msg_origin
+        self.bound_bot = getattr(event, "bot", None)
 
         sender = event.get_sender_name()
         message = {
@@ -130,6 +163,93 @@ class MinecraftManager:
 
         return MessageEventResult(chain=[Comp.Plain("OK")])
 
+    def _build_mcsm_output_url(self) -> str:
+        params = {
+            "uuid": self.mcsm_instance_uuid,
+            "daemonId": self.mcsm_daemon_id,
+            "size": str(self.mcsm_output_size),
+        }
+        if self.mcsm_api_key:
+            params["apikey"] = self.mcsm_api_key
+        return f"{self.mcsm_base_url}/api/protected_instance/outputlog?{urllib.parse.urlencode(params)}"
+
+    def _fetch_mcsm_output_sync(self) -> str:
+        url = self._build_mcsm_output_url()
+        request = urllib.request.Request(url, headers={"Accept": "application/json"})
+        with urllib.request.urlopen(request, timeout=self.rcon_timeout) as response:
+            body = response.read().decode("utf-8", errors="ignore")
+        data = json.loads(body)
+        if data.get("status") != 200:
+            raise ValueError(f"MCSM API 返回异常: {data.get('status')}")
+        return str(data.get("data", ""))
+
+    async def _fetch_mcsm_output(self) -> str:
+        return await asyncio.to_thread(self._fetch_mcsm_output_sync)
+
+    def _get_new_mcsm_output(self, output: str) -> str:
+        if not self.mcsm_last_output:
+            self.mcsm_last_output = output
+            return ""
+
+        if output.startswith(self.mcsm_last_output):
+            new_output = output[len(self.mcsm_last_output):]
+        else:
+            old_tail = self.mcsm_last_output[-4096:]
+            overlap_index = output.find(old_tail) if old_tail else -1
+            new_output = output[overlap_index + len(old_tail):] if overlap_index >= 0 else output
+
+        self.mcsm_last_output = output
+        return new_output
+
+    def _extract_chat_messages(self, output: str) -> list[tuple[str, str]]:
+        messages: list[tuple[str, str]] = []
+        chat_pattern = re.compile(r"(?:^|\]:\s|\]:\s\[Not Secure\]\s*)<([^>\n]+)>\s+(.+)$")
+        for line in output.splitlines():
+            match = chat_pattern.search(line.strip())
+            if not match:
+                continue
+
+            username = match.group(1).strip()
+            message = match.group(2).strip()
+            dedupe_key = f"{username}\0{message}"
+            if not username or not message or dedupe_key in self.mcsm_recent_chat_lines:
+                continue
+
+            self.mcsm_recent_chat_lines.append(dedupe_key)
+            messages.append((username, message))
+        return messages
+
+    async def _forward_mc_chat(self, username: str, message: str):
+        result = MessageEventResult(chain=[Comp.Plain(f"[服内] {username}: {message}")])
+        if self.target_umo:
+            await self.context.send_message(self.target_umo, result)
+            return
+
+        if self.mcsm_forward_group and self.bound_bot:
+            await self.bound_bot.api.call_action(
+                "send_group_msg",
+                group_id=int(self.mcsm_forward_group),
+                message=f"[服内] {username}: {message}",
+            )
+
+    async def _mcsm_chat_monitor_loop(self):
+        while self.mcsm_chat_enabled:
+            try:
+                if not self.mcsm_base_url or not self.mcsm_instance_uuid or not self.mcsm_daemon_id:
+                    await asyncio.sleep(self.mcsm_poll_interval)
+                    continue
+
+                output = await self._fetch_mcsm_output()
+                new_output = self._get_new_mcsm_output(output)
+                for username, message in self._extract_chat_messages(new_output):
+                    await self._forward_mc_chat(username, message)
+            except asyncio.CancelledError:
+                break
+            except Exception as exc:
+                logger.warning(f"[MCSM Chat] 获取或转发聊天失败: {exc}")
+
+            await asyncio.sleep(self.mcsm_poll_interval)
+
     async def restart_mc_server(self, event: AstrMessageEvent) -> MessageEventResult:
         if not self.is_admin(event):
             return MessageEventResult(chain=[Comp.Plain("您没有权限执行此操作")])
@@ -153,5 +273,7 @@ class MinecraftManager:
         return result
 
     async def terminate(self):
+        if self.mcsm_monitor_task and not self.mcsm_monitor_task.done():
+            self.mcsm_monitor_task.cancel()
         self.target_umo = None
         logger.info("[MC RCON] 模块已卸载")
