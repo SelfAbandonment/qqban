@@ -148,4 +148,5 @@ QQVerify 是一个 AstrBot 群成员入群验证插件。新成员入群后，�
 
 ## 相关链接
 
+- [更新日志](CHANGELOG.md)
 - [AstrBot 帮助文档](https://astrbot.app)
