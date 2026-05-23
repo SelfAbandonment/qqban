@@ -19,6 +19,9 @@
 - 新增插件卸载清理逻辑，卸载时会取消所有待验证倒计时任务。
 - 新增可选 Minecraft RCON 扩展模块，提供 `/tomc`、`/mcrestart`、`/myid` 命令。
 - 新增 MC RCON 配置读取兼容，支持 `rcon_password`、`RCON_PASSWORD`、`mc_rcon_password` 等字段名。
+- 新增本地 `rcon_config.json` 兜底配置读取，并将该文件加入 `.gitignore`，避免 RCON 密码被提交。
+- 新增 `/qqverify_reload` 命令，可在运行时重新读取 AstrBot 配置和本地 RCON 配置。
+- 新增通用配置读取工具，入群验证和 MC RCON 模块共用同一套配置解析逻辑。
 
 ### 优化
 
@@ -35,6 +38,8 @@
 - MC RCON 发送失败时会返回具体原因，例如未启用、未配置密码、认证失败或连接异常。
 - MC RCON 命令不再被启用开关拦截；调用 `/tomc` 或 `/mcrestart` 时会直接根据 RCON 配置尝试连接，未填写密码时提示 `RCON 密码未配置`。
 - MC RCON 初始化时会输出不包含密码内容的配置状态日志，便于排查配置是否被插件读取。
+- MC RCON 配置读取支持嵌套配置对象以及 `{"value": "..."}` 结构，兼容更多 AstrBot 配置保存形态。
+- 入群验证配置现在也支持运行时重载，重载不会清空正在验证的用户状态。
 
 ### 验证
 

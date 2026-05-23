@@ -1,6 +1,5 @@
 import asyncio
 import json
-import os
 import struct
 from typing import Any, Dict, Iterable, Optional, Tuple
 
@@ -8,6 +7,7 @@ from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, MessageEventResult
 import astrbot.api.message_components as Comp
 from astrbot.api.star import Context
+from .config_utils import config_float, config_get, config_int, config_str, load_json_config
 
 
 SERVERDATA_AUTH = 3
@@ -22,53 +22,20 @@ def _to_str_list(value: Any) -> list[str]:
     return []
 
 
-def _unwrap_config_value(value: Any) -> Any:
-    if hasattr(value, "value"):
-        return getattr(value, "value")
-    return value
-
-
-def _is_empty_config_value(value: Any) -> bool:
-    return value is None or str(value).strip() in {"", "None", "null"}
-
-
-def _config_get(config: Dict[str, Any], keys: list[str], default: Any = None) -> Any:
-    for key in keys:
-        value = None
-        found = False
-
-        if hasattr(config, "get"):
-            value = config.get(key, None)
-            found = value is not None
-
-        if not found and isinstance(config, dict) and key in config:
-            value = config[key]
-            found = True
-
-        if not found and hasattr(config, key):
-            value = getattr(config, key)
-            found = True
-
-        value = _unwrap_config_value(value)
-        if found and not _is_empty_config_value(value):
-            return value
-
-        env_value = os.getenv(key)
-        if not _is_empty_config_value(env_value):
-            return env_value
-
-    return default
-
-
 class MinecraftManager:
     def __init__(self, context: Context, config: Dict[str, Any]):
         self.context = context
-        self.rcon_ip = str(_config_get(config, ["rcon_ip", "RCON_IP", "mc_rcon_ip"], "127.0.0.1"))
-        self.rcon_port = int(_config_get(config, ["rcon_port", "RCON_PORT", "mc_rcon_port"], 25575))
-        self.rcon_password = str(_config_get(config, ["rcon_password", "RCON_PASSWORD", "mc_rcon_password"], ""))
-        self.rcon_timeout = float(_config_get(config, ["rcon_timeout", "RCON_TIMEOUT", "mc_rcon_timeout"], 5.0))
-        self.admin_qq = set(_to_str_list(_config_get(config, ["mc_admin_qq", "ADMIN_QQ", "admin_qq"], [])))
         self.target_umo: Optional[str] = None
+        self.reload_config(config)
+
+    def reload_config(self, config: Dict[str, Any]):
+        local_config = load_json_config("rcon_config.json")
+        configs = [config, local_config]
+        self.rcon_ip = config_str(configs, ["rcon_ip", "RCON_IP", "mc_rcon_ip"], "127.0.0.1")
+        self.rcon_port = config_int(configs, ["rcon_port", "RCON_PORT", "mc_rcon_port"], 25575)
+        self.rcon_password = config_str(configs, ["rcon_password", "RCON_PASSWORD", "mc_rcon_password"], "")
+        self.rcon_timeout = config_float(configs, ["rcon_timeout", "RCON_TIMEOUT", "mc_rcon_timeout"], 5.0)
+        self.admin_qq = set(_to_str_list(config_get(configs, ["mc_admin_qq", "ADMIN_QQ", "admin_qq"], [])))
         logger.info(
             "[MC RCON] 配置状态: "
             f"ip={self.rcon_ip}, port={self.rcon_port}, "

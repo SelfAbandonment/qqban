@@ -5,6 +5,7 @@ from typing import Dict, Any, Tuple
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent
 from astrbot.api.star import Context
+from .config_utils import config_get, config_int, config_str
 
 
 def _safe_format(template: str, **kwargs: Any) -> str:
@@ -21,54 +22,72 @@ def _safe_format(template: str, **kwargs: Any) -> str:
 class QQGroupVerifyPlugin:
     def __init__(self, context: Context, config: Dict[str, Any]):
         self.context = context
+        self.pending: Dict[str, Dict[str, Any]] = {}
+        self.reload_config(config)
+
+    def reload_config(self, config: Dict[str, Any]):
         self.config = config
+        configs = [config]
 
         # --- 时间控制 ---
-        self.verification_timeout = config.get("verification_timeout", 120)
-        self.kick_countdown_warning_time = config.get("kick_countdown_warning_time", 15)
-        self.kick_delay = config.get("kick_delay", 5)
-        self.max_wrong_attempts = int(config.get("max_wrong_attempts", 3))
-        self.verification_difficulty = str(config.get("verification_difficulty", "normal")).lower()
-        self.verification_message_mode = str(config.get("verification_message_mode", "group")).lower()
+        self.verification_timeout = config_int(configs, ["verification_timeout"], 120)
+        self.kick_countdown_warning_time = config_int(configs, ["kick_countdown_warning_time"], 15)
+        self.kick_delay = config_int(configs, ["kick_delay"], 5)
+        self.max_wrong_attempts = config_int(configs, ["max_wrong_attempts"], 3)
+        self.verification_difficulty = config_str(configs, ["verification_difficulty"], "normal").lower()
+        self.verification_message_mode = config_str(configs, ["verification_message_mode"], "group").lower()
 
         #消息模板模板 ---
-        self.new_member_prompt = config.get(
-            "new_member_prompt",
+        self.new_member_prompt = config_get(
+            configs,
+            ["new_member_prompt"],
             "{at_user} 欢迎加入本群！请在 {timeout} 分钟内@我并回答下面的问题以完成验证：\n{question}"
         )
-        self.welcome_message = config.get(
-            "welcome_message",
+        self.welcome_message = config_get(
+            configs,
+            ["welcome_message"],
             "{at_user} 验证成功，欢迎你的加入！\n1.请仔细阅读群公告\n2.群文件下载整合包自带IP\n3.白名单添加，群聊发送指令 “/绑定 您的ID”\n最后祝您玩得愉快"
         )
-        self.wrong_answer_prompt = config.get(
-            "wrong_answer_prompt",
+        self.wrong_answer_prompt = config_get(
+            configs,
+            ["wrong_answer_prompt"],
             "{at_user} 答案错误，请重新回答验证。这是你的新问题：\n{question}"
         )
-        self.wrong_answer_limit_prompt = config.get(
-            "wrong_answer_limit_prompt",
+        self.wrong_answer_limit_prompt = config_get(
+            configs,
+            ["wrong_answer_limit_prompt"],
             "{at_user} 答案错误次数过多，你将在 {countdown} 秒后被请出本群。"
         )
-        self.private_verification_notice_prompt = config.get(
-            "private_verification_notice_prompt",
+        self.private_verification_notice_prompt = config_get(
+            configs,
+            ["private_verification_notice_prompt"],
             "{at_user} 验证题已通过私聊发送，请在 {timeout} 分钟内完成验证。"
         )
-        self.private_message_failed_prompt = config.get(
-            "private_message_failed_prompt",
+        self.private_message_failed_prompt = config_get(
+            configs,
+            ["private_message_failed_prompt"],
             "{at_user} 私聊发送失败，请在群内 @我 回答下面的问题完成验证：\n{question}"
         )
-        self.countdown_warning_prompt = config.get(
-            "countdown_warning_prompt",
+        self.countdown_warning_prompt = config_get(
+            configs,
+            ["countdown_warning_prompt"],
             "{at_user} 验证即将超时，请尽快查看我的验证消息进行人机验证！"
         )
-        self.failure_message = config.get(
-            "failure_message",
+        self.failure_message = config_get(
+            configs,
+            ["failure_message"],
             "{at_user} 验证超时，你将在 {countdown} 秒后被请出本群。"
         )
-        self.kick_message = config.get(
-            "kick_message",
+        self.kick_message = config_get(
+            configs,
+            ["kick_message"],
             "{at_user} 因未在规定时间内完成验证，已被请出本群。"
         )
-        self.pending: Dict[str, Dict[str, Any]] = {}
+        logger.info(
+            "[QQ Verify] 配置已加载: "
+            f"timeout={self.verification_timeout}, difficulty={self.verification_difficulty}, "
+            f"message_mode={self.verification_message_mode}, max_wrong_attempts={self.max_wrong_attempts}"
+        )
 
     def _pending_key(self, gid: Any, uid: str) -> str:
         return f"{gid}:{uid}"

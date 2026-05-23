@@ -68,6 +68,14 @@ QQVerify 是一个 AstrBot 群成员入群验证插件。新成员入群后，�
 
 ## 配置说明
 
+修改配置后，可以发送以下命令让插件重新读取 AstrBot 配置和本地兜底配置：
+
+```text
+/qqverify_reload
+```
+
+如果已配置 `mc_admin_qq`，该命令仅允许白名单用户执行；如果管理员列表尚未读取成功，则允许执行，方便修复配置。
+
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
 | `verification_timeout` | `300` | 验证总超时时间，单位秒。 |
@@ -143,6 +151,24 @@ MC RCON 功能不会后台主动连接服务器，只有调用 `/tomc`、`/mcres
 如果不使用 MC 功能，不需要填写 RCON 配置。使用 MC 功能时，请至少填写 `rcon_ip`、`rcon_port` 和 `rcon_password`。
 
 兼容旧配置字段名：`RCON_IP`、`RCON_PORT`、`RCON_PASSWORD`、`RCON_TIMEOUT`、`ADMIN_QQ`。如果日志仍提示密码未配置，请重载插件后查看启动日志中的 `[MC RCON] 配置状态`，确认 `password` 是否显示为 `已配置`。
+
+如果 AstrBot 配置没有传入插件，也可以在插件目录新建 `rcon_config.json` 作为兜底配置。该文件已加入 `.gitignore`，不要提交到仓库：
+
+```json
+{
+  "rcon_ip": "127.0.0.1",
+  "rcon_port": 25575,
+  "rcon_password": "你的RCON密码",
+  "mc_admin_qq": "123456789"
+}
+```
+
+创建或修改该文件后，可以发送 `/qqverify_reload` 重新读取配置，不必重启 AstrBot。重载成功后，日志中应显示：
+
+```text
+[Config] 已加载本地配置文件: rcon_config.json
+[MC RCON] 配置状态: ip=你的服务器IP, port=21002, password=已配置, admin_count=1
+```
 
 启用示例：
 
