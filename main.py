@@ -6,13 +6,19 @@ from .core.minecraft_manager import MinecraftManager
 
 @register("QQVerify", "SelfAbandonmen", "群成员动态验证插件", "0.0.2", "repo url")
 class MyPlugin(Star):
-    def __init__(self, context: Context):
+    def __init__(self, context: Context, config=None):
         super().__init__(context)
+        self.config = config
         self.join = None
         self.minecraft = None
 
     def _load_config(self):
-        return self.context.get_config()
+        if self.config is not None:
+            return self.config
+        get_config = getattr(self.context, 'get_config', None)
+        if get_config:
+            return get_config()
+        return {}
     
     async def initialize(self):
         config = self._load_config()

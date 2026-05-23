@@ -76,6 +76,8 @@ QQVerify 是一个 AstrBot 群成员入群验证插件。新成员入群后，�
 
 如果已配置 `mc_admin_qq`，该命令仅允许白名单用户执行；如果管理员列表尚未读取成功，则允许执行，方便修复配置。
 
+插件按照 AstrBot 官方配置方式读取配置：AstrBot 会根据 [_conf_schema.json](_conf_schema.json) 生成配置文件，并在插件实例化时传入配置对象。`/qqverify_reload` 会基于当前配置对象重新刷新运行时参数。
+
 | 配置项 | 默认值 | 说明 |
 | --- | --- | --- |
 | `verification_timeout` | `300` | 验证总超时时间，单位秒。 |
