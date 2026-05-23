@@ -21,9 +21,18 @@ def _to_str_list(value: Any) -> list[str]:
     return []
 
 
+def _to_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "on", "enable", "enabled"}
+    return bool(value)
+
+
 class MinecraftManager:
     def __init__(self, context: Context, config: Dict[str, Any]):
         self.context = context
+        self.enabled = _to_bool(config.get("mc_rcon_enabled", False))
         self.rcon_ip = str(config.get("rcon_ip", "127.0.0.1"))
         self.rcon_port = int(config.get("rcon_port", 25575))
         self.rcon_password = str(config.get("rcon_password", ""))
@@ -55,6 +64,9 @@ class MinecraftManager:
         return request_id, packet_type, payload
 
     async def execute_rcon(self, command: str) -> Tuple[bool, str]:
+        if not self.enabled:
+            return False, "MC RCON 扩展未启用"
+
         if not self.rcon_password:
             return False, "RCON 密码未配置"
 
@@ -98,15 +110,16 @@ class MinecraftManager:
             "italic": True,
         }
         command = f"tellraw @a {json.dumps(message, ensure_ascii=False)}"
-        success, _ = await self.execute_rcon(command)
+        success, response = await self.execute_rcon(command)
 
         if not success:
-            return MessageEventResult(chain=[Comp.Plain("发送失败，RCON 连接异常")])
+            return MessageEventResult(chain=[Comp.Plain(f"发送失败：{response}")])
 
         try:
             group_id = event.get_group_id()
-            if group_id:
-                await event.bot.group_poke(
+            bot = getattr(event, "bot", None)
+            if group_id and bot:
+                await bot.group_poke(
                     group_id=int(group_id),
                     user_id=int(event.get_sender_id()),
                     poke_type="ShowLove",
@@ -118,6 +131,9 @@ class MinecraftManager:
         return MessageEventResult(chain=[Comp.Plain("OK")])
 
     async def restart_mc_server(self, event: AstrMessageEvent) -> MessageEventResult:
+        if not self.enabled:
+            return MessageEventResult(chain=[Comp.Plain("MC RCON 扩展未启用")])
+
         if not self.is_admin(event):
             return MessageEventResult(chain=[Comp.Plain("您没有权限执行此操作")])
 
@@ -134,6 +150,7 @@ class MinecraftManager:
             Comp.Plain("=== 账户信息 ===\n"),
             Comp.Plain(f"QQ号: {qq_id}\n"),
             Comp.Plain(f"身份: {'管理员' if is_admin else '普通用户'}\n"),
+            Comp.Plain(f"MC RCON: {'已启用' if self.enabled else '未启用'}\n"),
             Comp.Plain(f"当前群绑定状态: {'已绑定' if self.target_umo else '未绑定 (请发送 /tomc 激活)'}"),
         ]
         return result

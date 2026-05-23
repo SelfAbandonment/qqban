@@ -47,12 +47,12 @@ QQVerify 是一个 AstrBot 群成员入群验证插件。新成员入群后，�
 
 ```json
 {
-	"verification_timeout": 300,
-	"kick_countdown_warning_time": 60,
-	"kick_delay": 5,
-	"max_wrong_attempts": 3,
-	"verification_difficulty": "normal",
-	"verification_message_mode": "group"
+  "verification_timeout": 300,
+  "kick_countdown_warning_time": 60,
+  "kick_delay": 5,
+  "max_wrong_attempts": 3,
+  "verification_difficulty": "normal",
+  "verification_message_mode": "group"
 }
 ```
 
@@ -60,7 +60,7 @@ QQVerify 是一个 AstrBot 群成员入群验证插件。新成员入群后，�
 
 ```json
 {
-	"verification_message_mode": "hybrid"
+  "verification_message_mode": "hybrid"
 }
 ```
 
@@ -138,8 +138,23 @@ QQVerify 是一个 AstrBot 群成员入群验证插件。新成员入群后，�
 
 当前插件中还包含一个可选的 Minecraft RCON 扩展模块，用于 `/tomc`、`/mcrestart`、`/myid` 等命令。入群验证功能不依赖该模块。
 
+MC RCON 扩展默认关闭。如果不使用 MC 功能，不需要填写 RCON 配置，也不会主动连接 RCON。
+
+启用示例：
+
+```json
+{
+  "mc_rcon_enabled": true,
+  "rcon_ip": "127.0.0.1",
+  "rcon_port": 25575,
+  "rcon_password": "你的RCON密码",
+  "mc_admin_qq": "123456789"
+}
+```
+
 如果不使用 MC 功能，可以忽略以下配置：
 
+- `mc_rcon_enabled`
 - `rcon_ip`
 - `rcon_port`
 - `rcon_password`
