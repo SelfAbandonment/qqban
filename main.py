@@ -40,6 +40,7 @@ class MyPlugin(Star):
     @filter.command("tomc")
     async def tomc_command(self, event: AstrMessageEvent, text: str):
         """发送消息到 MC。"""
+        event.stop_event()
         if self.minecraft:
             result = await self.minecraft.send_to_mc(event, text)
             if result:
@@ -48,12 +49,14 @@ class MyPlugin(Star):
     @filter.command("mcrestart")
     async def restart_mc_server(self, event: AstrMessageEvent):
         """通过 RCON 关闭 MC 服务端。"""
+        event.stop_event()
         if self.minecraft:
             yield await self.minecraft.restart_mc_server(event)
 
     @filter.command("myid")
     async def show_my_id(self, event: AstrMessageEvent):
         """显示账户信息。"""
+        event.stop_event()
         if self.minecraft:
             yield self.minecraft.account_info(event)
 
