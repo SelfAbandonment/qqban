@@ -13,10 +13,8 @@ import astrbot.api.message_components as Comp
 from astrbot.api.star import Context
 from .config_utils import config_bool, config_float, config_get, config_int, config_str, load_json_config
 
-
 SERVERDATA_AUTH = 3
 SERVERDATA_EXECCOMMAND = 2
-
 
 def _to_str_list(value: Any) -> list[str]:
     if isinstance(value, str):
@@ -24,7 +22,6 @@ def _to_str_list(value: Any) -> list[str]:
     if isinstance(value, Iterable):
         return [str(item).strip() for item in value if str(item).strip()]
     return []
-
 
 class MinecraftManager:
     def __init__(self, context: Context, config: Dict[str, Any]):
@@ -34,6 +31,7 @@ class MinecraftManager:
         self.mcsm_monitor_task: Optional[asyncio.Task] = None
         self.mcsm_last_output = ""
         self.mcsm_recent_chat_lines = deque(maxlen=200)
+        self.forwarded_msg_ids = deque(maxlen=500)
         self.reload_config(config)
 
     def reload_config(self, config: Dict[str, Any]):
@@ -132,13 +130,14 @@ class MinecraftManager:
                 writer.close()
                 await writer.wait_closed()
 
-    async def send_to_mc(self, event: AstrMessageEvent, text: str) -> Optional[MessageEventResult]:
+    async def send_to_mc(self, event: AstrMessageEvent, text: str, is_reply: bool = False) -> Optional[MessageEventResult]:
         self.target_umo = event.unified_msg_origin
         self.bound_bot = getattr(event, "bot", None)
 
+        prefix = "[回复] " if is_reply else ""
         sender = event.get_sender_name()
         message = {
-            "text": f"[Q群] {sender}: {text.replace(chr(10), ' ')}",
+            "text": f"[Q群] {sender}: {prefix}{text.replace(chr(10), ' ')}",
             "color": "#F99CAB",
             "italic": True,
         }
@@ -222,15 +221,21 @@ class MinecraftManager:
     async def _forward_mc_chat(self, username: str, message: str):
         result = MessageEventResult(chain=[Comp.Plain(f"[服内] {username}: {message}")])
         if self.target_umo:
-            await self.context.send_message(self.target_umo, result)
+            ret = await self.context.send_message(self.target_umo, result)
+            if ret:
+                msg_id = getattr(ret, "message_id", None)
+                if msg_id is not None:
+                    self.forwarded_msg_ids.append(str(msg_id))
             return
 
         if self.mcsm_forward_group and self.bound_bot:
-            await self.bound_bot.api.call_action(
+            ret = await self.bound_bot.api.call_action(
                 "send_group_msg",
                 group_id=int(self.mcsm_forward_group),
                 message=f"[服内] {username}: {message}",
             )
+            if isinstance(ret, dict) and "message_id" in ret:
+                self.forwarded_msg_ids.append(str(ret["message_id"]))
 
     async def _mcsm_chat_monitor_loop(self):
         while self.mcsm_chat_enabled:
@@ -249,6 +254,15 @@ class MinecraftManager:
                 logger.warning(f"[MCSM Chat] 获取或转发聊天失败: {exc}")
 
             await asyncio.sleep(self.mcsm_poll_interval)
+
+    async def handle_qq_reply(self, event: AstrMessageEvent, text: str) -> bool:
+        for comp in event.message_obj.message:
+            if isinstance(comp, Comp.Reply):
+                reply_id = str(getattr(comp, "id", ""))
+                if reply_id and reply_id in self.forwarded_msg_ids:
+                    await self.send_to_mc(event, text, is_reply=True)
+                    return True
+        return False
 
     async def restart_mc_server(self, event: AstrMessageEvent) -> MessageEventResult:
         if not self.is_admin(event):
