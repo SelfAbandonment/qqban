@@ -31,7 +31,7 @@ class MinecraftManager:
         self.mcsm_monitor_task: Optional[asyncio.Task] = None
         self.mcsm_last_output = ""
         self.mcsm_recent_chat_lines = deque(maxlen=200)
-        self.forwarded_msg_ids = deque(maxlen=500)
+        self.forwarded_msgs = deque(maxlen=500)
         self.reload_config(config)
 
     def reload_config(self, config: Dict[str, Any]):
@@ -225,7 +225,7 @@ class MinecraftManager:
             if ret:
                 msg_id = getattr(ret, "message_id", None)
                 if msg_id is not None:
-                    self.forwarded_msg_ids.append(str(msg_id))
+                    self.forwarded_msgs.append((str(msg_id), username))
             return
 
         if self.mcsm_forward_group and self.bound_bot:
@@ -235,7 +235,7 @@ class MinecraftManager:
                 message=f"[服内] {username}: {message}",
             )
             if isinstance(ret, dict) and "message_id" in ret:
-                self.forwarded_msg_ids.append(str(ret["message_id"]))
+                self.forwarded_msgs.append((str(ret["message_id"]), username))
 
     async def _mcsm_chat_monitor_loop(self):
         while self.mcsm_chat_enabled:
@@ -259,9 +259,13 @@ class MinecraftManager:
         for comp in event.message_obj.message:
             if isinstance(comp, Comp.Reply):
                 reply_id = str(getattr(comp, "id", ""))
-                if reply_id and reply_id in self.forwarded_msg_ids:
-                    await self.send_to_mc(event, text, is_reply=True)
-                    return True
+                if reply_id:
+                    for msg_id, username in self.forwarded_msgs:
+                        if reply_id == msg_id:
+                            logger.info(f"收到对（{username}）的回复：（{text}）")
+                            await self.send_to_mc(event, text, is_reply=True)
+                            event.stop_event()
+                            return True
         return False
 
     async def restart_mc_server(self, event: AstrMessageEvent) -> MessageEventResult:
