@@ -27,11 +27,12 @@ class MinecraftManager:
     def __init__(self, context: Context, config: Dict[str, Any]):
         self.context = context
         self.target_umo: Optional[str] = None
+        self.target_group_id: Optional[str] = None
         self.bound_bot = None
         self.mcsm_monitor_task: Optional[asyncio.Task] = None
         self.mcsm_last_output = ""
         self.mcsm_recent_chat_lines = deque(maxlen=200)
-        self.forwarded_msg_ids = deque(maxlen=500)
+        self.forwarded_msgs = deque(maxlen=500)
         self.reload_config(config)
 
     def reload_config(self, config: Dict[str, Any]):
@@ -133,6 +134,7 @@ class MinecraftManager:
     async def send_to_mc(self, event: AstrMessageEvent, text: str, is_reply: bool = False) -> Optional[MessageEventResult]:
         self.target_umo = event.unified_msg_origin
         self.bound_bot = getattr(event, "bot", None)
+        self.target_group_id = event.get_group_id()
 
         prefix = "[回复] " if is_reply else ""
         sender = event.get_sender_name()
@@ -219,23 +221,31 @@ class MinecraftManager:
         return messages
 
     async def _forward_mc_chat(self, username: str, message: str):
-        result = MessageEventResult(chain=[Comp.Plain(f"[服内] {username}: {message}")])
-        if self.target_umo:
-            ret = await self.context.send_message(self.target_umo, result)
-            if ret:
-                msg_id = getattr(ret, "message_id", None)
-                if msg_id is not None:
-                    self.forwarded_msg_ids.append(str(msg_id))
-            return
+        target_group = self.mcsm_forward_group if self.mcsm_forward_group else self.target_group_id
 
-        if self.mcsm_forward_group and self.bound_bot:
+        if target_group and self.bound_bot:
             ret = await self.bound_bot.api.call_action(
                 "send_group_msg",
-                group_id=int(self.mcsm_forward_group),
+                group_id=int(target_group),
                 message=f"[服内] {username}: {message}",
             )
-            if isinstance(ret, dict) and "message_id" in ret:
-                self.forwarded_msg_ids.append(str(ret["message_id"]))
+            logger.info(f"[MC 调试] call_action API返回对象: {ret}")
+            msg_id = None
+            if isinstance(ret, dict):
+                msg_id = ret.get("message_id")
+                if not msg_id and "data" in ret and isinstance(ret["data"], dict):
+                    msg_id = ret["data"].get("message_id")
+            elif hasattr(ret, "message_id"):
+                msg_id = getattr(ret, "message_id")
+            
+            if msg_id is not None:
+                self.forwarded_msgs.append((str(msg_id), username))
+                logger.info(f"[MC 调试] 成功存入缓存: {msg_id}")
+            return
+
+        if self.target_umo:
+            result = MessageEventResult(chain=[Comp.Plain(f"[服内] {username}: {message}")])
+            await self.context.send_message(self.target_umo, result)
 
     async def _mcsm_chat_monitor_loop(self):
         while self.mcsm_chat_enabled:
@@ -256,12 +266,22 @@ class MinecraftManager:
             await asyncio.sleep(self.mcsm_poll_interval)
 
     async def handle_qq_reply(self, event: AstrMessageEvent, text: str) -> bool:
+        logger.info(f"[MC 调试] 开始检查回复拦截。当前缓存池大小: {len(self.forwarded_msgs)}")
+        
         for comp in event.message_obj.message:
             if isinstance(comp, Comp.Reply):
                 reply_id = str(getattr(comp, "id", ""))
-                if reply_id and reply_id in self.forwarded_msg_ids:
-                    await self.send_to_mc(event, text, is_reply=True)
-                    return True
+                logger.info(f"[MC 调试] 找到 Reply 组件，提取到的 reply_id: '{reply_id}'")
+                logger.info(f"[MC 调试] 缓存池中现有的 IDs: {[msg_id for msg_id, _ in self.forwarded_msgs]}")
+                
+                if reply_id:
+                    for msg_id, username in self.forwarded_msgs:
+                        if reply_id == msg_id:
+                            logger.info(f"收到对（{username}）的回复：（{text}）")
+                            await self.send_to_mc(event, text, is_reply=True)
+                            event.stop_event()
+                            return True
+                    logger.info("[MC 调试] 匹配失败：引用的 ID 不在缓存池中。")
         return False
 
     async def restart_mc_server(self, event: AstrMessageEvent) -> MessageEventResult:
@@ -290,4 +310,5 @@ class MinecraftManager:
         if self.mcsm_monitor_task and not self.mcsm_monitor_task.done():
             self.mcsm_monitor_task.cancel()
         self.target_umo = None
+        self.target_group_id = None
         logger.info("[MC RCON] 模块已卸载")
