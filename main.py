@@ -29,7 +29,6 @@ class MyPlugin(Star):
             await initialize()
 
     async def terminate(self):
-        # 清理资源
         if self.join and hasattr(self.join, 'terminate'):
             await self.join.terminate()
         self.join = None
@@ -62,6 +61,14 @@ class MyPlugin(Star):
 
     @filter.event_message_type(filter.EventMessageType.ALL)
     async def handle_event(self, event: AstrMessageEvent):
-        """监听入群并且下发数字动态验证"""
+        if self.minecraft:
+            text = event.message_str.strip() if event.message_str else ""
+            is_mc_reply = await self.minecraft.handle_qq_reply(event, text)
+            if is_mc_reply:
+                return
+
+        if self.join:
+            await self.join.handle_event(event)
+
         if self.join:
             await self.join.handle_event(event)
