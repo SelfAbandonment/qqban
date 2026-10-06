@@ -2,6 +2,7 @@ import ast
 import json
 import re
 import unittest
+import urllib.parse
 from collections import deque
 from pathlib import Path
 from unittest.mock import Mock
@@ -19,7 +20,11 @@ def load_chat_methods():
         for node in tree.body
         if isinstance(node, ast.ClassDef) and node.name == "MinecraftManager"
     )
-    methods = {"_extract_chat_messages", "_get_new_mcsm_output"}
+    methods = {
+        "_extract_chat_messages",
+        "_get_new_mcsm_output",
+        "_build_mcsm_output_url",
+    }
     manager.body = [
         node
         for node in manager.body
@@ -34,7 +39,7 @@ def load_chat_methods():
         ],
         type_ignores=[],
     )
-    namespace = {"re": re, "logger": Mock()}
+    namespace = {"re": re, "logger": Mock(), "urllib": urllib}
     exec(
         compile(
             ast.fix_missing_locations(module),
@@ -111,6 +116,35 @@ class MinecraftChatTests(unittest.TestCase):
         new_output = self.manager._get_new_mcsm_output("<Steve> @qq hello\n")
         self.assertEqual(
             self.manager._extract_chat_messages(new_output), [("Steve", "hello")]
+        )
+
+    def test_outputlog_request_uses_kilobyte_unit(self):
+        self.manager.mcsm_base_url = "http://localhost:23333"
+        self.manager.mcsm_instance_uuid = "instance"
+        self.manager.mcsm_daemon_id = "daemon"
+        self.manager.mcsm_api_key = ""
+        for size in (16, 64, 128):
+            with self.subTest(size=size):
+                self.manager.mcsm_output_size = size
+                url = urllib.parse.urlsplit(self.manager._build_mcsm_output_url())
+                query = urllib.parse.parse_qs(url.query)
+                self.assertEqual(query["size"], [f"{size}kb"])
+                self.assertEqual(query["uuid"], ["instance"])
+                self.assertEqual(query["daemonId"], ["daemon"])
+                self.assertNotIn("apikey", query)
+
+    def test_kilobyte_window_preserves_full_reported_chat_line(self):
+        self.manager.mcsm_chat_prefix = "@qq"
+        line = (
+            "[08:09:09] [Server thread/INFO] [minecraft/MinecraftServer]: "
+            "<SelfAbandonmen> @qq 测试22\n"
+        )
+        output = line + "[08:09:10] [Server thread/INFO]: Saving world data\n"
+        self.assertGreater(len(output), 64)
+        self.assertEqual(self.manager._extract_chat_messages(output[-64:]), [])
+        self.assertEqual(
+            self.manager._extract_chat_messages(output[-64 * 1024 :]),
+            [("SelfAbandonmen", "测试22")],
         )
 
     def test_existing_deduplication_is_preserved(self):

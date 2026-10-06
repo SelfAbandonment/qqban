@@ -257,11 +257,15 @@ GET /api/protected_instance/outputlog
 
 `@qq` 也可作为 `mcsm_chat_prefix`，游戏中应发送 `@qq 内容`（半角 `@`，前缀后有空格）。`/tomc` 走 RCON，其成功不代表 MCSM API 正常。
 
+`mcsm_output_size` 的单位为 KB，插件应发送 `size=64kb` 等带单位的参数。MCSManager 对纯数字 `size=64` 仅返回末尾 64 个字符，不是 64 KB。v0.7.0 和 v0.7.1 曾错误地发送纯数字参数，可能截断完整聊天行；诊断连续显示 `output_chars=64` 时需更新至包含此修复的版本。
+
 1. 保存配置并重载插件，确认 `[MCSM Chat] 配置状态` 中的 `prefix` 是实际需要的前缀。配置读取仍支持环境变量覆盖 WebUI 配置。
 2. 在目标群发送 `/tomc 测试` 重新绑定，等待 `日志游标已建立` 后发送一条全新的游戏消息。
 3. 临时开启 `mcsm_chat_debug` 并重载，查看 `轮询诊断`：`output_chars` 为拉取日志长度，`new_chars` 为新增长度，`matched` 为匹配且未被去重的消息数。诊断不输出聊天正文或凭据。
 4. `new_chars=0` 表示没有读到新增日志；有新增但 `matched=0` 时检查前缀、真实日志格式及重复消息；`matched>0` 仍收不到时检查绑定状态和转发失败日志。
 5. 排查完成后关闭诊断，避免每次轮询都输出 INFO 日志。
+
+接口单位依据：[MCSManager 官方 outputlog 实现](https://github.com/MCSManager/MCSManager/blob/master/panel/src/app/routers/instance_operate_router.ts)。
 
 ## 相关链接
 

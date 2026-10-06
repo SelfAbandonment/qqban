@@ -167,7 +167,7 @@
     "description": "MCSM 日志拉取大小 KB",
     "type": "int",
     "default": 64,
-    "hint": "outputlog 接口 size 参数，建议 16~128。"
+    "hint": "单位 KB，调用 outputlog 时使用带 kb 后缀的 size 参数（例如 64kb）；建议 16~128。"
   },
   "mcsm_poll_interval": {
     "description": "MCSM 轮询间隔（秒）",

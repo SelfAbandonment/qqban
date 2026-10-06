@@ -241,7 +241,7 @@ class MinecraftManager:
         params = {
             "uuid": self.mcsm_instance_uuid,
             "daemonId": self.mcsm_daemon_id,
-            "size": str(self.mcsm_output_size),
+            "size": f"{self.mcsm_output_size}kb",
         }
         if self.mcsm_api_key:
             params["apikey"] = self.mcsm_api_key
