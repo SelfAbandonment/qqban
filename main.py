@@ -1,41 +1,33 @@
-from astrbot.api.event import filter, AstrMessageEvent
-from astrbot.api.star import Context, Star, register
+from astrbot.api import AstrBotConfig
+from astrbot.api.event import AstrMessageEvent, filter
+from astrbot.api.star import Context, Star
+
 from .core.join_head import QQGroupVerifyPlugin
 from .core.minecraft_manager import MinecraftManager
 
-@register("QQVerify", "SelfAbandonmen", "群成员动态验证插件", "0.0.2", "repo url")
+
 class MyPlugin(Star):
-    def __init__(self, context: Context, config=None):
+    def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
         self.config = config
         self.join = None
         self.minecraft = None
 
-    def _load_config(self):
-        if self.config is not None:
-            return self.config
-        get_config = getattr(self.context, 'get_config', None)
-        if get_config:
-            return get_config()
-        return {}
-    
     async def initialize(self):
-        config = self._load_config()
-        self.join = QQGroupVerifyPlugin(self.context,config)
-        self.minecraft = MinecraftManager(self.context, config)
-        
-        initialize = getattr(self.join, 'initialize', None)
-        if initialize:
-            await initialize()
+        self.join = QQGroupVerifyPlugin(self.context, self.config)
+        self.minecraft = MinecraftManager(self.context, self.config)
 
     async def terminate(self):
-        # 清理资源
-        if self.join and hasattr(self.join, 'terminate'):
-            await self.join.terminate()
-        self.join = None
-        if self.minecraft and hasattr(self.minecraft, 'terminate'):
-            await self.minecraft.terminate()
-        self.minecraft = None
+        try:
+            if self.join:
+                await self.join.terminate()
+        finally:
+            self.join = None
+            try:
+                if self.minecraft:
+                    await self.minecraft.terminate()
+            finally:
+                self.minecraft = None
 
     @filter.command("tomc")
     async def tomc_command(self, event: AstrMessageEvent, text: str):

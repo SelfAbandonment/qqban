@@ -18,6 +18,7 @@ QQVerify 是一个 AstrBot 群成员入群验证插件。新成员入群后，�
 ## 使用要求
 
 - AstrBot 已正常运行
+- 使用 `aiocqhttp`（OneBot v11，例如 NapCat、Lagrange）平台适配器；入群验证和踢人依赖其 QQ 协议端 API，不支持 QQ 官方机器人适配器
 - Bot 需要在目标 QQ 群中拥有发送消息权限
 - 如果需要自动踢出未验证用户，Bot 需要拥有群管理员权限
 - 如果启用私聊验证，平台和用户设置需要允许 Bot 向新成员发送私聊消息
@@ -40,6 +41,23 @@ QQVerify 是一个 AstrBot 群成员入群验证插件。新成员入群后，�
 6. 超时或答错次数过多后，插件发送提示并踢出用户。
 
 如果启用私聊验证，用户可以直接在私聊里回复答案数字。
+
+### QQ 验证消息样式
+
+验证消息使用 QQ 原生 @成员和普通分段文字，不使用 Markdown、JSON 卡片或合并转发。题目无需点开卡片即可查看、复制，群聊与私聊会分别显示正确的作答说明：
+
+```text
+@新成员
+【入群验证】
+欢迎加入，请在 5 分钟内完成验证。
+
+题目：23 + 18 = ?
+作答：在群内 @机器人 并发送答案数字。
+```
+
+私聊中首行显示成员昵称，作答说明为“直接回复答案数字，无需 @机器人”。私聊失败回退群聊时恢复群内作答说明。答错、成功及超时提示使用相同的分段样式。
+
+配置面板的验证文案使用多行文本框。更新后，完全匹配旧版默认值的文案会在发送时采用新排版，不改写保存的配置；其他自定义文案原样保留。自定义文案中可使用 `{reply_instruction}` 适配群聊/私聊，而硬编码的“@我”不会自动替换。
 
 ## 推荐配置
 
@@ -117,6 +135,8 @@ QQVerify 是一个 AstrBot 群成员入群验证插件。新成员入群后，�
 | `{member_name}` | 用户群昵称或 QQ 号。 |
 | `{question}` | 当前验证题。 |
 | `{timeout}` | 验证超时时间，单位分钟。 |
+| `{timeout_text}` | 带单位的验证时长；整分钟显示分钟，否则显示秒，适用于入群题目、私聊通知和私聊失败回退提示。 |
+| `{reply_instruction}` | 当前题目的作答说明；群聊要求 @机器人，私聊直接回复数字，适用于入群题目、答错题目和私聊失败回退提示。 |
 | `{countdown}` | 踢出前等待秒数。 |
 | `{wrong_attempts}` | 当前已答错次数。 |
 | `{remaining_attempts}` | 剩余可答错次数。 |
@@ -151,7 +171,7 @@ MC RCON 功能不会后台主动连接服务器，只有调用 `/tomc`、`/mcres
 
 兼容旧配置字段名：`RCON_IP`、`RCON_PORT`、`RCON_PASSWORD`、`RCON_TIMEOUT`、`ADMIN_QQ`。如果日志仍提示密码未配置，请重启插件或 AstrBot 后查看启动日志中的 `[MC RCON] 配置状态`，确认 `password` 是否显示为 `已配置`。
 
-如果 AstrBot 配置没有传入插件，也可以在插件目录新建 `rcon_config.json` 作为兜底配置。该文件已加入 `.gitignore`，不要提交到仓库：
+优先通过 AstrBot WebUI 配置 RCON。如果需要本地兜底配置，可以在 AstrBot 数据目录下新建 `data/plugin_data/QQVerify/rcon_config.json`（缺失的目录请自行创建）。WebUI 中非空的配置优先于本地配置。不要将含密码的文件提交到仓库：
 
 ```json
 {
@@ -169,7 +189,9 @@ MC RCON 功能不会后台主动连接服务器，只有调用 `/tomc`、`/mcres
 [MC RCON] 配置状态: ip=你的服务器IP, port=21002, password=已配置, admin_count=1
 ```
 
-启用示例：
+旧版插件目录下的 `rcon_config.json` 仍可读取，但会提示迁移。请将旧文件移到上述数据目录，避免插件更新或重装时被覆盖；两处同时存在时，只读取数据目录下的文件。插件不会自动复制或改写含凭据的配置文件。
+
+WebUI 配置示例：
 
 ```json
 {
@@ -196,10 +218,10 @@ MC RCON 功能不会后台主动连接服务器，只有调用 `/tomc`、`/mcres
 GET /api/protected_instance/outputlog
 ```
 
-然后从实例控制台输出中匹配玩家聊天行，例如：
+然后从实例控制台输出中匹配玩家聊天行。只有以指定前缀（默认 `#qq`）开头、前缀后带空白和正文的消息才会转发，例如：
 
 ```text
-[Server thread/INFO]: <Steve> hello
+[Server thread/INFO]: <Steve> #qq hello
 ```
 
 转发为：
@@ -213,6 +235,7 @@ GET /api/protected_instance/outputlog
 ```json
 {
   "mcsm_chat_enabled": true,
+  "mcsm_chat_prefix": "#qq",
   "mcsm_base_url": "http://127.0.0.1:23333",
   "mcsm_api_key": "你的MCSM API Key",
   "mcsm_instance_uuid": "实例UUID",
@@ -222,13 +245,38 @@ GET /api/protected_instance/outputlog
 }
 ```
 
-转发目标优先使用 `/tomc` 最近绑定过的会话。也就是说，先在目标群里发送一次 `/tomc 测试`，之后服内聊天会转发到这个群。
+可通过 `mcsm_chat_prefix` 自定义前缀，留空使用默认 `#qq`。前缀区分大小写，转发时会去掉前缀及正文两端的空白。普通聊天、只发送 `#qq`、`#qqhello` 或在正文中间出现 `#qq` 都不会转发。此筛选只影响 MC 到 QQ，不影响 QQ 的 `/tomc` 命令，也不会隐藏游戏内的原始聊天。
+
+转发目标优先使用 `/tomc` 最近绑定过的会话。也就是说，先在目标群里发送一次 `/tomc 测试`，之后服内带前缀的聊天会转发到这个群。
 
 如果没有绑定会话，可以配置 `mcsm_forward_group` 作为默认群号；但该方式需要 Bot 运行时已经拿到平台实例，稳定性不如 `/tomc` 绑定。
 
-注意：监听任务启动后第一次拉取日志只会建立游标，不会把旧日志全部刷到 QQ；之后只转发新增聊天。
+注意：监听任务启动后第一次拉取日志只会建立游标，不会把旧日志全部刷到 QQ；之后只转发新增且带前缀的聊天。更新前已启用监听的用户也会使用默认 `#qq` 筛选，更新后请重启插件。
 
 ## 相关链接
 
 - [更新日志](CHANGELOG.md)
 - [AstrBot 帮助文档](https://astrbot.app)
+
+## 开发与基础规范
+
+- 插件元信息统一由 `metadata.yaml` 提供，保留已有唯一标识 `QQVerify`，避免更名导致配置关联变化。
+- 配置通过官方 `AstrBotConfig` 构造参数注入；命令入口位于 `main.py`，具体业务保留在 `core` 中。
+- 插件只使用 Python 标准库与 AstrBot 提供的 API，没有额外第三方运行依赖，因此不需要 `requirements.txt`。
+- 卸载或重载时会取消并等待已记录的验证任务和 MCSM 监听任务退出。
+- 验证状态仍仅保存在内存中；本次未改变验证流程，也未增加状态持久化。
+
+本地回归测试不需要运行 AstrBot：
+
+```bash
+python -m unittest discover -s tests -v
+python -m compileall -q main.py core tests
+python -m ruff check .
+python -m ruff format --check .
+```
+
+Ruff 为开发工具，不是插件运行依赖，可通过 `python -m pip install ruff` 安装；检查规则由仓库的 `ruff.toml` 定义，不依赖上级目录配置。开发及实际运行建议使用 AstrBot 支持的 Python 3.10 或更新版本。真实平台事件、RCON 和 MCSM 联调需将插件放入 AstrBot 的 `data/plugins` 目录，启动 AstrBot 并在 WebUI 中重载插件。
+
+规范依据：[官方插件开发指南](https://github.com/AstrBotDevs/AstrBot-docs/blob/v4/zh/dev/star/plugin-new.md)、[配置文档](https://github.com/AstrBotDevs/AstrBot-docs/blob/v4/zh/dev/star/guides/plugin-config.md)、[存储文档](https://github.com/AstrBotDevs/AstrBot-docs/blob/v4/zh/dev/star/guides/storage.md)。
+
+验证消息继续使用现有 OneBot QQ 协议端 API 发送，保留 `{at_user}` 的原生 CQ @行为。相关规范：[官方消息发送文档](https://github.com/AstrBotDevs/AstrBot-docs/blob/v4/zh/dev/star/guides/send-message.md)、[QQ 协议端 API 调用文档](https://github.com/AstrBotDevs/AstrBot-docs/blob/v4/zh/dev/star/guides/other.md)。

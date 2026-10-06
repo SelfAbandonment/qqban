@@ -1,2 +1,6 @@
 .vscode/settings.json
 rcon_config.json
+__pycache__/
+*.py[cod]
+.venv/
+.ruff_cache/

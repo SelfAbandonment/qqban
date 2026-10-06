@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from astrbot.api import logger
+from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
 
 def unwrap_config_value(value: Any) -> Any:
@@ -35,7 +36,9 @@ def iter_config_items(config: Any):
         yield from vars(config).items()
 
 
-def search_config_value(config: Any, keys: list[str], visited: Optional[set[int]] = None) -> Any:
+def search_config_value(
+    config: Any, keys: list[str], visited: Optional[set[int]] = None
+) -> Any:
     if config is None:
         return None
 
@@ -72,9 +75,15 @@ def search_config_value(config: Any, keys: list[str], visited: Optional[set[int]
 
 
 def load_json_config(file_name: str) -> dict[str, Any]:
-    config_path = Path(__file__).resolve().parents[1] / file_name
+    config_path = Path(get_astrbot_data_path()) / "plugin_data" / "QQVerify" / file_name
     if not config_path.exists():
-        return {}
+        config_path = Path(__file__).resolve().parents[1] / file_name
+        if not config_path.exists():
+            return {}
+        logger.warning(
+            f"[Config] 正在读取插件目录中的旧配置 {file_name}，"
+            "请迁移到 data/plugin_data/QQVerify/，避免更新插件时丢失。"
+        )
 
     try:
         with config_path.open("r", encoding="utf-8") as config_file:
@@ -82,6 +91,7 @@ def load_json_config(file_name: str) -> dict[str, Any]:
             if isinstance(data, dict):
                 logger.info(f"[Config] 已加载本地配置文件: {config_path.name}")
                 return data
+            logger.warning(f"[Config] 本地配置必须是 JSON 对象 ({file_name})。")
     except Exception as exc:
         logger.warning(f"[Config] 读取本地配置文件失败 ({file_name}): {exc}")
     return {}
@@ -125,8 +135,28 @@ def config_bool(configs: list[Any], keys: list[str], default: bool = False) -> b
         return value
     if isinstance(value, str):
         value_text = value.strip().lower()
-        if value_text in {"1", "true", "yes", "on", "enable", "enabled", "启用", "开启", "是"}:
+        if value_text in {
+            "1",
+            "true",
+            "yes",
+            "on",
+            "enable",
+            "enabled",
+            "启用",
+            "开启",
+            "是",
+        }:
             return True
-        if value_text in {"0", "false", "no", "off", "disable", "disabled", "禁用", "关闭", "否"}:
+        if value_text in {
+            "0",
+            "false",
+            "no",
+            "off",
+            "disable",
+            "disabled",
+            "禁用",
+            "关闭",
+            "否",
+        }:
             return False
     return bool(value)

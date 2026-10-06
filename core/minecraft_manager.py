@@ -7,14 +7,23 @@ import urllib.request
 from collections import deque
 from typing import Any, Dict, Iterable, Optional, Tuple
 
+import astrbot.api.message_components as Comp
 from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent, MessageEventResult
-import astrbot.api.message_components as Comp
 from astrbot.api.star import Context
-from .config_utils import config_bool, config_float, config_get, config_int, config_str, load_json_config
+
+from .config_utils import (
+    config_bool,
+    config_float,
+    config_get,
+    config_int,
+    config_str,
+    load_json_config,
+)
 
 SERVERDATA_AUTH = 3
 SERVERDATA_EXECCOMMAND = 2
+
 
 def _to_str_list(value: Any) -> list[str]:
     if isinstance(value, str):
@@ -22,6 +31,7 @@ def _to_str_list(value: Any) -> list[str]:
     if isinstance(value, Iterable):
         return [str(item).strip() for item in value if str(item).strip()]
     return []
+
 
 class MinecraftManager:
     def __init__(self, context: Context, config: Dict[str, Any]):
@@ -38,19 +48,49 @@ class MinecraftManager:
     def reload_config(self, config: Dict[str, Any]):
         local_config = load_json_config("rcon_config.json")
         configs = [config, local_config]
-        self.rcon_ip = config_str(configs, ["rcon_ip", "RCON_IP", "mc_rcon_ip"], "127.0.0.1")
-        self.rcon_port = config_int(configs, ["rcon_port", "RCON_PORT", "mc_rcon_port"], 25575)
-        self.rcon_password = config_str(configs, ["rcon_password", "RCON_PASSWORD", "mc_rcon_password"], "")
-        self.rcon_timeout = config_float(configs, ["rcon_timeout", "RCON_TIMEOUT", "mc_rcon_timeout"], 5.0)
-        self.admin_qq = set(_to_str_list(config_get(configs, ["mc_admin_qq", "ADMIN_QQ", "admin_qq"], [])))
-        self.mcsm_chat_enabled = config_bool(configs, ["mcsm_chat_enabled", "MCSM_CHAT_ENABLED"], False)
-        self.mcsm_base_url = config_str(configs, ["mcsm_base_url", "MCSM_BASE_URL"], "").rstrip("/")
+        self.rcon_ip = config_str(
+            configs, ["rcon_ip", "RCON_IP", "mc_rcon_ip"], "127.0.0.1"
+        )
+        self.rcon_port = config_int(
+            configs, ["rcon_port", "RCON_PORT", "mc_rcon_port"], 25575
+        )
+        self.rcon_password = config_str(
+            configs, ["rcon_password", "RCON_PASSWORD", "mc_rcon_password"], ""
+        )
+        self.rcon_timeout = config_float(
+            configs, ["rcon_timeout", "RCON_TIMEOUT", "mc_rcon_timeout"], 5.0
+        )
+        self.admin_qq = set(
+            _to_str_list(
+                config_get(configs, ["mc_admin_qq", "ADMIN_QQ", "admin_qq"], [])
+            )
+        )
+        self.mcsm_chat_enabled = config_bool(
+            configs, ["mcsm_chat_enabled", "MCSM_CHAT_ENABLED"], False
+        )
+        self.mcsm_chat_prefix = config_str(
+            configs, ["mcsm_chat_prefix", "MCSM_CHAT_PREFIX"], "#qq"
+        ).strip()
+        self.mcsm_base_url = config_str(
+            configs, ["mcsm_base_url", "MCSM_BASE_URL"], ""
+        ).rstrip("/")
         self.mcsm_api_key = config_str(configs, ["mcsm_api_key", "MCSM_API_KEY"], "")
-        self.mcsm_instance_uuid = config_str(configs, ["mcsm_instance_uuid", "MCSM_INSTANCE_UUID", "mcsm_uuid"], "")
-        self.mcsm_daemon_id = config_str(configs, ["mcsm_daemon_id", "MCSM_DAEMON_ID", "daemonId"], "")
-        self.mcsm_output_size = config_int(configs, ["mcsm_output_size", "MCSM_OUTPUT_SIZE"], 64)
-        self.mcsm_poll_interval = max(config_float(configs, ["mcsm_poll_interval", "MCSM_POLL_INTERVAL"], 2.0), 1.0)
-        self.mcsm_forward_group = config_str(configs, ["mcsm_forward_group", "MCSM_FORWARD_GROUP"], "")
+        self.mcsm_instance_uuid = config_str(
+            configs, ["mcsm_instance_uuid", "MCSM_INSTANCE_UUID", "mcsm_uuid"], ""
+        )
+        self.mcsm_daemon_id = config_str(
+            configs, ["mcsm_daemon_id", "MCSM_DAEMON_ID", "daemonId"], ""
+        )
+        self.mcsm_output_size = config_int(
+            configs, ["mcsm_output_size", "MCSM_OUTPUT_SIZE"], 64
+        )
+        self.mcsm_poll_interval = max(
+            config_float(configs, ["mcsm_poll_interval", "MCSM_POLL_INTERVAL"], 2.0),
+            1.0,
+        )
+        self.mcsm_forward_group = config_str(
+            configs, ["mcsm_forward_group", "MCSM_FORWARD_GROUP"], ""
+        )
         logger.info(
             "[MC RCON] 配置状态: "
             f"ip={self.rcon_ip}, port={self.rcon_port}, "
@@ -68,7 +108,9 @@ class MinecraftManager:
     def _sync_mcsm_monitor_task(self):
         if self.mcsm_chat_enabled:
             if not self.mcsm_monitor_task or self.mcsm_monitor_task.done():
-                self.mcsm_monitor_task = asyncio.create_task(self._mcsm_chat_monitor_loop())
+                self.mcsm_monitor_task = asyncio.create_task(
+                    self._mcsm_chat_monitor_loop()
+                )
                 logger.info("[MCSM Chat] 监听任务已启动")
         elif self.mcsm_monitor_task and not self.mcsm_monitor_task.done():
             self.mcsm_monitor_task.cancel()
@@ -81,25 +123,43 @@ class MinecraftManager:
             logger.error(f"[MC RCON] 权限检查失败: {exc}")
             return False
 
-    def _build_rcon_packet(self, request_id: int, packet_type: int, payload: str) -> bytes:
+    def _build_rcon_packet(
+        self, request_id: int, packet_type: int, payload: str
+    ) -> bytes:
         payload_bytes = payload.encode("utf-8") + b"\x00"
         size = 4 + 4 + len(payload_bytes) + 1
-        return struct.pack(f"<iii{len(payload_bytes)}sb", size, request_id, packet_type, payload_bytes, 0)
+        return struct.pack(
+            f"<iii{len(payload_bytes)}sb",
+            size,
+            request_id,
+            packet_type,
+            payload_bytes,
+            0,
+        )
 
-    async def _read_rcon_response(self, reader: asyncio.StreamReader) -> Tuple[int, int, str]:
-        size_bytes = await asyncio.wait_for(reader.readexactly(4), timeout=self.rcon_timeout)
+    async def _read_rcon_response(
+        self, reader: asyncio.StreamReader
+    ) -> Tuple[int, int, str]:
+        size_bytes = await asyncio.wait_for(
+            reader.readexactly(4), timeout=self.rcon_timeout
+        )
         size = struct.unpack("<i", size_bytes)[0]
         if size > 4096:
             raise ValueError(f"RCON 包过大: {size}")
 
-        remaining_bytes = await asyncio.wait_for(reader.readexactly(size), timeout=self.rcon_timeout)
+        remaining_bytes = await asyncio.wait_for(
+            reader.readexactly(size), timeout=self.rcon_timeout
+        )
         request_id, packet_type = struct.unpack("<ii", remaining_bytes[:8])
         payload = remaining_bytes[8:-2].decode("utf-8", errors="ignore")
         return request_id, packet_type, payload
 
     async def execute_rcon(self, command: str) -> Tuple[bool, str]:
         if not self.rcon_password:
-            return False, "RCON 密码未配置，请检查 rcon_password 或 RCON_PASSWORD 配置后重启插件或 AstrBot"
+            return (
+                False,
+                "RCON 密码未配置，请检查 rcon_password 或 RCON_PASSWORD 配置后重启插件或 AstrBot",
+            )
 
         writer: Optional[asyncio.StreamWriter] = None
         try:
@@ -108,7 +168,9 @@ class MinecraftManager:
                 timeout=self.rcon_timeout,
             )
 
-            writer.write(self._build_rcon_packet(1, SERVERDATA_AUTH, self.rcon_password))
+            writer.write(
+                self._build_rcon_packet(1, SERVERDATA_AUTH, self.rcon_password)
+            )
             await writer.drain()
 
             auth_request_id, _, _ = await self._read_rcon_response(reader)
@@ -116,7 +178,11 @@ class MinecraftManager:
                 return False, "RCON 密码错误或认证失败"
 
             command_request_id = 300
-            writer.write(self._build_rcon_packet(command_request_id, SERVERDATA_EXECCOMMAND, command))
+            writer.write(
+                self._build_rcon_packet(
+                    command_request_id, SERVERDATA_EXECCOMMAND, command
+                )
+            )
             await writer.drain()
 
             response_request_id, _, payload = await self._read_rcon_response(reader)
@@ -131,7 +197,9 @@ class MinecraftManager:
                 writer.close()
                 await writer.wait_closed()
 
-    async def send_to_mc(self, event: AstrMessageEvent, text: str, is_reply: bool = False) -> Optional[MessageEventResult]:
+    async def send_to_mc(
+        self, event: AstrMessageEvent, text: str, is_reply: bool = False
+    ) -> Optional[MessageEventResult]:
         self.target_umo = event.unified_msg_origin
         self.bound_bot = getattr(event, "bot", None)
         self.target_group_id = event.get_group_id()
@@ -193,18 +261,24 @@ class MinecraftManager:
             return ""
 
         if output.startswith(self.mcsm_last_output):
-            new_output = output[len(self.mcsm_last_output):]
+            new_output = output[len(self.mcsm_last_output) :]
         else:
             old_tail = self.mcsm_last_output[-4096:]
             overlap_index = output.find(old_tail) if old_tail else -1
-            new_output = output[overlap_index + len(old_tail):] if overlap_index >= 0 else output
+            new_output = (
+                output[overlap_index + len(old_tail) :]
+                if overlap_index >= 0
+                else output
+            )
 
         self.mcsm_last_output = output
         return new_output
 
     def _extract_chat_messages(self, output: str) -> list[tuple[str, str]]:
         messages: list[tuple[str, str]] = []
-        chat_pattern = re.compile(r"(?:^|\]:\s|\]:\s\[Not Secure\]\s*)<([^>\n]+)>\s+(.+)$")
+        chat_pattern = re.compile(
+            r"(?:^|\]:\s|\]:\s\[Not Secure\]\s*)<([^>\n]+)>\s+(.+)$"
+        )
         for line in output.splitlines():
             match = chat_pattern.search(line.strip())
             if not match:
@@ -212,16 +286,25 @@ class MinecraftManager:
 
             username = match.group(1).strip()
             message = match.group(2).strip()
+            if not message.startswith(self.mcsm_chat_prefix):
+                continue
+
+            content = message[len(self.mcsm_chat_prefix) :]
+            if not content or not content[0].isspace():
+                continue
+            content = content.strip()
             dedupe_key = f"{username}\0{message}"
-            if not username or not message or dedupe_key in self.mcsm_recent_chat_lines:
+            if not username or not content or dedupe_key in self.mcsm_recent_chat_lines:
                 continue
 
             self.mcsm_recent_chat_lines.append(dedupe_key)
-            messages.append((username, message))
+            messages.append((username, content))
         return messages
 
     async def _forward_mc_chat(self, username: str, message: str):
-        target_group = self.mcsm_forward_group if self.mcsm_forward_group else self.target_group_id
+        target_group = (
+            self.mcsm_forward_group if self.mcsm_forward_group else self.target_group_id
+        )
 
         if target_group and self.bound_bot:
             ret = await self.bound_bot.api.call_action(
@@ -237,20 +320,26 @@ class MinecraftManager:
                     msg_id = ret["data"].get("message_id")
             elif hasattr(ret, "message_id"):
                 msg_id = getattr(ret, "message_id")
-            
+
             if msg_id is not None:
                 self.forwarded_msgs.append((str(msg_id), username))
                 logger.info(f"[MC 调试] 成功存入缓存: {msg_id}")
             return
 
         if self.target_umo:
-            result = MessageEventResult(chain=[Comp.Plain(f"[服内] {username}: {message}")])
+            result = MessageEventResult(
+                chain=[Comp.Plain(f"[服内] {username}: {message}")]
+            )
             await self.context.send_message(self.target_umo, result)
 
     async def _mcsm_chat_monitor_loop(self):
         while self.mcsm_chat_enabled:
             try:
-                if not self.mcsm_base_url or not self.mcsm_instance_uuid or not self.mcsm_daemon_id:
+                if (
+                    not self.mcsm_base_url
+                    or not self.mcsm_instance_uuid
+                    or not self.mcsm_daemon_id
+                ):
                     await asyncio.sleep(self.mcsm_poll_interval)
                     continue
 
@@ -266,14 +355,20 @@ class MinecraftManager:
             await asyncio.sleep(self.mcsm_poll_interval)
 
     async def handle_qq_reply(self, event: AstrMessageEvent, text: str) -> bool:
-        logger.info(f"[MC 调试] 开始检查回复拦截。当前缓存池大小: {len(self.forwarded_msgs)}")
-        
+        logger.info(
+            f"[MC 调试] 开始检查回复拦截。当前缓存池大小: {len(self.forwarded_msgs)}"
+        )
+
         for comp in event.message_obj.message:
             if isinstance(comp, Comp.Reply):
                 reply_id = str(getattr(comp, "id", ""))
-                logger.info(f"[MC 调试] 找到 Reply 组件，提取到的 reply_id: '{reply_id}'")
-                logger.info(f"[MC 调试] 缓存池中现有的 IDs: {[msg_id for msg_id, _ in self.forwarded_msgs]}")
-                
+                logger.info(
+                    f"[MC 调试] 找到 Reply 组件，提取到的 reply_id: '{reply_id}'"
+                )
+                logger.info(
+                    f"[MC 调试] 缓存池中现有的 IDs: {[msg_id for msg_id, _ in self.forwarded_msgs]}"
+                )
+
                 if reply_id:
                     for msg_id, username in self.forwarded_msgs:
                         if reply_id == msg_id:
@@ -290,7 +385,9 @@ class MinecraftManager:
 
         success, response = await self.execute_rcon("stop")
         if success:
-            return MessageEventResult(chain=[Comp.Plain(f"已发送关闭指令 (stop)\n反馈: {response}")])
+            return MessageEventResult(
+                chain=[Comp.Plain(f"已发送关闭指令 (stop)\n反馈: {response}")]
+            )
         return MessageEventResult(chain=[Comp.Plain(f"指令发送失败: {response}")])
 
     def account_info(self, event: AstrMessageEvent) -> MessageEventResult:
@@ -302,13 +399,22 @@ class MinecraftManager:
             Comp.Plain(f"QQ号: {qq_id}\n"),
             Comp.Plain(f"身份: {'管理员' if is_admin else '普通用户'}\n"),
             Comp.Plain(f"MC RCON: {'已配置' if self.rcon_password else '未配置'}\n"),
-            Comp.Plain(f"当前群绑定状态: {'已绑定' if self.target_umo else '未绑定 (请发送 /tomc 激活)'}"),
+            Comp.Plain(
+                f"当前群绑定状态: {'已绑定' if self.target_umo else '未绑定 (请发送 /tomc 激活)'}"
+            ),
         ]
         return result
 
     async def terminate(self):
         if self.mcsm_monitor_task and not self.mcsm_monitor_task.done():
             self.mcsm_monitor_task.cancel()
+        if self.mcsm_monitor_task:
+            try:
+                await self.mcsm_monitor_task
+            except asyncio.CancelledError:
+                pass
+        self.mcsm_monitor_task = None
         self.target_umo = None
         self.target_group_id = None
+        self.bound_bot = None
         logger.info("[MC RCON] 模块已卸载")

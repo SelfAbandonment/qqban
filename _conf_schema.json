@@ -27,66 +27,68 @@
     "description": "验证题难度",
     "type": "string",
     "default": "normal",
+    "options": ["easy", "normal", "hard"],
     "hint": "可选值: easy, normal, hard。easy 只出简单加减法，normal 出加减除法，hard 额外包含乘法和数列。"
   },
   "verification_message_mode": {
     "description": "验证消息发送模式",
     "type": "string",
     "default": "group",
+    "options": ["group", "private", "hybrid"],
     "hint": "可选值: group, private, hybrid。group 在群内发题，private 私聊发题并在群内提示，hybrid 优先私聊失败后回退群内发题。"
   },
   "new_member_prompt": {
     "description": "新成员入群提示语",
-    "type": "string",
-    "default": "{at_user} 欢迎加入本群！请在 {timeout} 分钟内 @我 并回答下面的问题以完成验证：\n{question}",
-    "hint": "用户入群时的提示语。可用变量: {at_user}, {member_name}, {question}, {timeout} (分钟)。"
+    "type": "text",
+    "default": "{at_user}\n【入群验证】\n欢迎加入，请在 {timeout_text}内完成验证。\n\n题目：{question}\n作答：{reply_instruction}",
+    "hint": "用户入群时的提示语。可用变量: {at_user}, {member_name}, {question}, {timeout} (分钟), {timeout_text} (带单位), {reply_instruction} (按群聊/私聊自动调整)。"
   },
   "welcome_message": {
     "description": "验证成功提示语",
-    "type": "string",
-    "default": "{at_user} 验证成功，欢迎你的加入！\n1.请仔细阅读群公告\n2.群文件下载整合包自带IP\n最后祝您玩得愉快",
+    "type": "text",
+    "default": "{at_user}\n【验证成功】\n欢迎加入！\n\n1. 请仔细阅读群公告\n2. 群文件可下载整合包，内含服务器 IP\n\n祝你玩得愉快！",
     "hint": "用户验证成功后发送的消息。可用变量: {at_user}, {member_name}。"
   },
   "wrong_answer_prompt": {
     "description": "答案错误提示语",
-    "type": "string",
-    "default": "{at_user} 答案错误，请重新回答验证。这是你的新问题：\n{question}",
-    "hint": "用户回答错误后发送的消息，之后会自动生成新问题。可用变量: {at_user}, {question}, {wrong_attempts}, {remaining_attempts}。"
+    "type": "text",
+    "default": "{at_user}\n【答案错误】\n已答错 {wrong_attempts} 次，剩余尝试：{remaining_attempts}。\n\n新题目：{question}\n作答：{reply_instruction}",
+    "hint": "用户回答错误后发送的消息，之后会自动生成新问题。可用变量: {at_user}, {question}, {wrong_attempts}, {remaining_attempts}, {reply_instruction}。"
   },
   "wrong_answer_limit_prompt": {
     "description": "答错次数过多提示语",
-    "type": "string",
-    "default": "{at_user} 答案错误次数过多，你将在 {countdown} 秒后被请出本群。",
+    "type": "text",
+    "default": "{at_user}\n【验证失败】\n答错次数已达到上限（{max_wrong_attempts} 次）。\n将在 {countdown} 秒后被移出本群。",
     "hint": "用户答错次数达到上限后发送的提示。可用变量: {at_user}, {member_name}, {countdown}, {max_wrong_attempts}。"
   },
   "private_verification_notice_prompt": {
     "description": "私聊验证群内提示语",
-    "type": "string",
-    "default": "{at_user} 验证题已通过私聊发送，请在 {timeout} 分钟内完成验证。",
-    "hint": "私聊发送验证题成功后，在群内发送的提示。可用变量: {at_user}, {member_name}, {timeout}。"
+    "type": "text",
+    "default": "{at_user}\n【入群验证】\n验证题已发送至私聊，请在 {timeout_text}内完成。\n请打开与机器人的私聊，直接回复答案数字。",
+    "hint": "私聊发送验证题成功后，在群内发送的提示。可用变量: {at_user}, {member_name}, {timeout}, {timeout_text}。"
   },
   "private_message_failed_prompt": {
     "description": "私聊发送失败提示语",
-    "type": "string",
-    "default": "{at_user} 私聊发送失败，请在群内 @我 回答下面的问题完成验证：\n{question}",
-    "hint": "private 模式私聊发送失败后，在群内发送的回退提示。可用变量: {at_user}, {member_name}, {question}, {timeout}。"
+    "type": "text",
+    "default": "{at_user}\n【入群验证】\n私聊发送失败，请在群内完成验证。\n请在 {timeout_text}内作答。\n\n题目：{question}\n作答：{reply_instruction}",
+    "hint": "private 模式私聊发送失败后，在群内发送的回退提示。可用变量: {at_user}, {member_name}, {question}, {timeout}, {timeout_text}, {reply_instruction}。"
   },
   "countdown_warning_prompt": {
     "description": "超时警告提示语",
-    "type": "string",
-    "default": "{at_user} 验证即将超时，请尽快查看我（BOT）的验证消息进行人机验证！",
+    "type": "text",
+    "default": "{at_user}\n【验证即将超时】\n请尽快查看验证题，并按题目下方的作答说明完成验证。",
     "hint": "在验证即将超时前发送的警告。可用变量: {at_user}, {member_name}。"
   },
   "failure_message": {
     "description": "验证超时提示语",
-    "type": "string",
-    "default": "{at_user} 验证超时，你将在 {countdown} 秒后被请出本群。",
+    "type": "text",
+    "default": "{at_user}\n【验证超时】\n未在规定时间内完成验证。\n将在 {countdown} 秒后被移出本群。",
     "hint": "用户因超时而验证失败后，踢出前发送的消息。可用变量: {at_user}, {member_name}, {countdown} (踢出延迟秒数)。"
   },
   "kick_message": {
     "description": "最终踢出提示语",
-    "type": "string",
-    "default": "{at_user} 因未在规定时间内完成验证，已被请出本群。",
+    "type": "text",
+    "default": "{at_user}\n【已移出本群】\n入群验证未通过。",
     "hint": "用户被踢出后发送的公开消息。可用变量: {at_user}, {member_name}。"
   },
   "rcon_ip": {
@@ -123,7 +125,13 @@
     "description": "启用 MCSM 聊天监听",
     "type": "bool",
     "default": false,
-    "hint": "启用后定时调用 MCSM outputlog API，从实例控制台输出中提取玩家聊天并转发到 QQ。"
+    "hint": "启用后定时调用 MCSM outputlog API，只转发带指定前缀的玩家聊天到 QQ，普通聊天不转发。"
+  },
+  "mcsm_chat_prefix": {
+    "description": "MC 到 QQ 聊天前缀",
+    "type": "string",
+    "default": "#qq",
+    "hint": "玩家发送“#qq 内容”才转发到 QQ，转发时去掉前缀。前缀区分大小写，后面必须有空白和正文；留空使用默认 #qq。修改后需重启插件。"
   },
   "mcsm_base_url": {
     "description": "MCSM 面板地址",
@@ -168,4 +176,3 @@
     "hint": "未通过 /tomc 绑定群聊时，可尝试使用该群号转发；需要 Bot 实例已在运行时绑定。"
   }
 }
-
