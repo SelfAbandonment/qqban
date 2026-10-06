@@ -133,6 +133,12 @@
     "default": "#qq",
     "hint": "玩家发送“#qq 内容”才转发到 QQ，转发时去掉前缀。前缀区分大小写，后面必须有空白和正文；留空使用默认 #qq。修改后需重启插件。"
   },
+  "mcsm_chat_debug": {
+    "description": "MCSM 聊天诊断日志",
+    "type": "bool",
+    "default": false,
+    "hint": "临时开启以记录每次轮询的日志长度、新增长度、匹配数量及绑定状态，不输出聊天正文或凭据。修改后重载插件，排查完成后关闭。"
+  },
   "mcsm_base_url": {
     "description": "MCSM 面板地址",
     "type": "string",

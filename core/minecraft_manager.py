@@ -41,6 +41,7 @@ class MinecraftManager:
         self.bound_bot = None
         self.mcsm_monitor_task: Optional[asyncio.Task] = None
         self.mcsm_last_output = ""
+        self.mcsm_output_initialized = False
         self.mcsm_recent_chat_lines = deque(maxlen=200)
         self.forwarded_msgs = deque(maxlen=500)
         self.reload_config(config)
@@ -71,6 +72,9 @@ class MinecraftManager:
         self.mcsm_chat_prefix = config_str(
             configs, ["mcsm_chat_prefix", "MCSM_CHAT_PREFIX"], "#qq"
         ).strip()
+        self.mcsm_chat_debug = config_bool(
+            configs, ["mcsm_chat_debug", "MCSM_CHAT_DEBUG"], False
+        )
         self.mcsm_base_url = config_str(
             configs, ["mcsm_base_url", "MCSM_BASE_URL"], ""
         ).rstrip("/")
@@ -101,7 +105,8 @@ class MinecraftManager:
             "[MCSM Chat] 配置状态: "
             f"enabled={self.mcsm_chat_enabled}, base_url={'已配置' if self.mcsm_base_url else '未配置'}, "
             f"uuid={'已配置' if self.mcsm_instance_uuid else '未配置'}, "
-            f"daemon_id={'已配置' if self.mcsm_daemon_id else '未配置'}"
+            f"daemon_id={'已配置' if self.mcsm_daemon_id else '未配置'}, "
+            f"prefix={self.mcsm_chat_prefix!r}, debug={self.mcsm_chat_debug}"
         )
         self._sync_mcsm_monitor_task()
 
@@ -250,14 +255,22 @@ class MinecraftManager:
         data = json.loads(body)
         if data.get("status") != 200:
             raise ValueError(f"MCSM API 返回异常: {data.get('status')}")
-        return str(data.get("data", ""))
+        output = data.get("data")
+        if not isinstance(output, str):
+            raise ValueError("MCSM outputlog 的 data 必须是日志字符串")
+        return output
 
     async def _fetch_mcsm_output(self) -> str:
         return await asyncio.to_thread(self._fetch_mcsm_output_sync)
 
     def _get_new_mcsm_output(self, output: str) -> str:
-        if not self.mcsm_last_output:
+        if not self.mcsm_output_initialized:
+            self.mcsm_output_initialized = True
             self.mcsm_last_output = output
+            logger.info(
+                f"[MCSM Chat] 日志游标已建立: chars={len(output)}，"
+                "本次仅记录历史，请在此日志之后发送新的测试消息"
+            )
             return ""
 
         if output.startswith(self.mcsm_last_output):
@@ -331,6 +344,12 @@ class MinecraftManager:
                 chain=[Comp.Plain(f"[服内] {username}: {message}")]
             )
             await self.context.send_message(self.target_umo, result)
+            return
+
+        logger.warning(
+            "[MCSM Chat] 已匹配聊天但未转发：未绑定 QQ 会话或平台实例，"
+            "请在目标群发送 /tomc 测试"
+        )
 
     async def _mcsm_chat_monitor_loop(self):
         while self.mcsm_chat_enabled:
@@ -345,7 +364,16 @@ class MinecraftManager:
 
                 output = await self._fetch_mcsm_output()
                 new_output = self._get_new_mcsm_output(output)
-                for username, message in self._extract_chat_messages(new_output):
+                messages = self._extract_chat_messages(new_output)
+                if self.mcsm_chat_debug:
+                    logger.info(
+                        "[MCSM Chat] 轮询诊断: "
+                        f"output_chars={len(output)}, new_chars={len(new_output)}, "
+                        f"matched={len(messages)}, prefix={self.mcsm_chat_prefix!r}, "
+                        f"session_bound={bool(self.target_umo)}, "
+                        f"bot_bound={bool(self.bound_bot)}"
+                    )
+                for username, message in messages:
                     await self._forward_mc_chat(username, message)
             except asyncio.CancelledError:
                 break

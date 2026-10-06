@@ -4,6 +4,7 @@ import re
 import unittest
 from collections import deque
 from pathlib import Path
+from unittest.mock import Mock
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -33,7 +34,7 @@ def load_chat_methods():
         ],
         type_ignores=[],
     )
-    namespace = {"re": re}
+    namespace = {"re": re, "logger": Mock()}
     exec(
         compile(
             ast.fix_missing_locations(module),
@@ -54,6 +55,7 @@ class MinecraftChatTests(unittest.TestCase):
         self.manager.mcsm_chat_prefix = "#qq"
         self.manager.mcsm_recent_chat_lines = deque(maxlen=200)
         self.manager.mcsm_last_output = ""
+        self.manager.mcsm_output_initialized = False
 
     def test_prefix_is_removed_from_supported_log_formats(self):
         output = (
@@ -87,6 +89,28 @@ class MinecraftChatTests(unittest.TestCase):
         self.assertEqual(
             self.manager._extract_chat_messages("<Steve> !qq\thello\n<Alex> #qq hi"),
             [("Steve", "hello")],
+        )
+
+    def test_at_prefix_matches_reported_forge_log(self):
+        self.manager.mcsm_chat_prefix = "@qq"
+        output = (
+            "[08:01:09] [Server thread/INFO] [minecraft/MinecraftServer]: "
+            "<SelfAbandonmen> @qq 测试11\n"
+            "[08:09:09] [Server thread/INFO] [minecraft/MinecraftServer]: "
+            "<SelfAbandonmen> @qq 测试22"
+        )
+        self.assertEqual(
+            self.manager._extract_chat_messages(output),
+            [("SelfAbandonmen", "测试11"), ("SelfAbandonmen", "测试22")],
+        )
+
+    def test_messages_after_empty_initial_log_are_not_discarded(self):
+        self.manager.mcsm_chat_prefix = "@qq"
+        self.assertEqual(self.manager._get_new_mcsm_output(""), "")
+        self.assertEqual(self.manager._get_new_mcsm_output(""), "")
+        new_output = self.manager._get_new_mcsm_output("<Steve> @qq hello\n")
+        self.assertEqual(
+            self.manager._extract_chat_messages(new_output), [("Steve", "hello")]
         )
 
     def test_existing_deduplication_is_preserved(self):
