@@ -94,7 +94,10 @@ class MinecraftManager:
         )
         self.mcsm_forward_group = config_str(
             configs, ["mcsm_forward_group", "MCSM_FORWARD_GROUP"], ""
-        )
+        ).strip()
+        self.mcsm_platform_id = config_str(
+            configs, ["mcsm_platform_id", "MCSM_PLATFORM_ID"], ""
+        ).strip()
         logger.info(
             "[MC RCON] 配置状态: "
             f"ip={self.rcon_ip}, port={self.rcon_port}, "
@@ -289,6 +292,7 @@ class MinecraftManager:
 
     def _extract_chat_messages(self, output: str) -> list[tuple[str, str]]:
         messages: list[tuple[str, str]] = []
+        batch_keys: set[str] = set()
         chat_pattern = re.compile(
             r"(?:^|\]:\s|\]:\s\[Not Secure\]\s*)<([^>\n]+)>\s+(.+)$"
         )
@@ -306,25 +310,71 @@ class MinecraftManager:
             if not content or not content[0].isspace():
                 continue
             content = content.strip()
-            dedupe_key = f"{username}\0{message}"
-            if not username or not content or dedupe_key in self.mcsm_recent_chat_lines:
+            dedupe_key = f"{username}\0{content}"
+            if (
+                not username
+                or not content
+                or dedupe_key in self.mcsm_recent_chat_lines
+                or dedupe_key in batch_keys
+            ):
                 continue
 
-            self.mcsm_recent_chat_lines.append(dedupe_key)
+            batch_keys.add(dedupe_key)
             messages.append((username, content))
         return messages
 
-    async def _forward_mc_chat(self, username: str, message: str):
+    def _get_configured_mcsm_bot(self) -> Any:
+        platforms = [
+            platform
+            for platform in self.context.platform_manager.get_insts()
+            if platform.meta().name == "aiocqhttp"
+        ]
+        if self.mcsm_platform_id:
+            platforms = [
+                platform
+                for platform in platforms
+                if platform.meta().id == self.mcsm_platform_id
+            ]
+        if len(platforms) != 1:
+            if not platforms:
+                logger.warning(
+                    "[MCSM Chat] 配置群转发失败：没有匹配的 aiocqhttp 平台，"
+                    "请检查平台是否启用及 mcsm_platform_id"
+                )
+            else:
+                logger.warning(
+                    "[MCSM Chat] 配置群转发失败：存在多个 aiocqhttp 平台，"
+                    "请设置 mcsm_platform_id 为 AstrBot 消息平台 ID"
+                )
+            return None
+        bot = platforms[0].get_client()
+        if bot is None:
+            logger.warning("[MCSM Chat] 配置群转发失败：平台客户端尚未就绪")
+        return bot
+
+    async def _forward_mc_chat(self, username: str, message: str) -> bool:
+        dedupe_key = f"{username}\0{message}"
+        if dedupe_key in self.mcsm_recent_chat_lines:
+            return False
+
         target_group = (
             self.mcsm_forward_group if self.mcsm_forward_group else self.target_group_id
         )
+        bot = (
+            self._get_configured_mcsm_bot()
+            if self.mcsm_forward_group
+            else self.bound_bot
+        )
+        if self.mcsm_forward_group and bot is None:
+            return False
 
-        if target_group and self.bound_bot:
-            ret = await self.bound_bot.api.call_action(
+        if target_group and bot:
+            ret = await bot.api.call_action(
                 "send_group_msg",
                 group_id=int(target_group),
                 message=f"[服内] {username}: {message}",
             )
+            self.mcsm_recent_chat_lines.append(dedupe_key)
             logger.info(f"[MC 调试] call_action API返回对象: {ret}")
             msg_id = None
             if isinstance(ret, dict):
@@ -337,19 +387,21 @@ class MinecraftManager:
             if msg_id is not None:
                 self.forwarded_msgs.append((str(msg_id), username))
                 logger.info(f"[MC 调试] 成功存入缓存: {msg_id}")
-            return
+            return True
 
         if self.target_umo:
             result = MessageEventResult(
                 chain=[Comp.Plain(f"[服内] {username}: {message}")]
             )
             await self.context.send_message(self.target_umo, result)
-            return
+            self.mcsm_recent_chat_lines.append(dedupe_key)
+            return True
 
         logger.warning(
             "[MCSM Chat] 已匹配聊天但未转发：未绑定 QQ 会话或平台实例，"
-            "请在目标群发送 /tomc 测试"
+            "请配置 mcsm_forward_group，或在目标群发送 /tomc 测试"
         )
+        return False
 
     async def _mcsm_chat_monitor_loop(self):
         while self.mcsm_chat_enabled:
@@ -370,6 +422,8 @@ class MinecraftManager:
                         "[MCSM Chat] 轮询诊断: "
                         f"output_chars={len(output)}, new_chars={len(new_output)}, "
                         f"matched={len(messages)}, prefix={self.mcsm_chat_prefix!r}, "
+                        f"configured_group={bool(self.mcsm_forward_group)}, "
+                        f"platform_id={self.mcsm_platform_id!r}, "
                         f"session_bound={bool(self.target_umo)}, "
                         f"bot_bound={bool(self.bound_bot)}"
                     )

@@ -179,6 +179,12 @@
     "description": "MCSM 默认转发群号",
     "type": "string",
     "default": "",
-    "hint": "未通过 /tomc 绑定群聊时，可尝试使用该群号转发；需要 Bot 实例已在运行时绑定。"
+    "hint": "填写后直接向该群转发，无需先执行 /tomc；Bot 必须在群内。只有一个 aiocqhttp 平台时自动选择，多个平台时需指定 mcsm_platform_id。留空时使用 /tomc 最近绑定的临时会话。"
+  },
+  "mcsm_platform_id": {
+    "description": "MCSM 转发机器人平台 ID",
+    "type": "string",
+    "default": "",
+    "hint": "填写 AstrBot 消息平台配置中的唯一 ID（不是机器人 QQ 号），用于选择向配置群发送消息的 aiocqhttp 平台。只有一个平台时可留空；指定 ID 不匹配或多平台未指定时明确报错，不会改发其他机器人或群。"
   }
 }

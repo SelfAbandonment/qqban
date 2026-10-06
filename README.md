@@ -241,15 +241,19 @@ GET /api/protected_instance/outputlog
   "mcsm_instance_uuid": "实例UUID",
   "mcsm_daemon_id": "Daemon ID",
   "mcsm_output_size": 64,
-  "mcsm_poll_interval": 2.0
+  "mcsm_poll_interval": 2.0,
+  "mcsm_forward_group": "你的QQ群号",
+  "mcsm_platform_id": ""
 }
 ```
 
 可通过 `mcsm_chat_prefix` 自定义前缀，留空使用默认 `#qq`。前缀区分大小写，转发时会去掉前缀及正文两端的空白。普通聊天、只发送 `#qq`、`#qqhello` 或在正文中间出现 `#qq` 都不会转发。此筛选只影响 MC 到 QQ，不影响 QQ 的 `/tomc` 命令，也不会隐藏游戏内的原始聊天。
 
-转发目标优先使用 `/tomc` 最近绑定过的会话。也就是说，先在目标群里发送一次 `/tomc 测试`，之后服内带前缀的聊天会转发到这个群。
+填写 `mcsm_forward_group` 后，插件直接获取 AstrBot 已加载的 `aiocqhttp` 平台客户端并向该群发送消息，不需要先执行 `/tomc`，也不依赖 RCON。Bot 必须已在群内并具备发送消息权限。
 
-如果没有绑定会话，可以配置 `mcsm_forward_group` 作为默认群号；但该方式需要 Bot 运行时已经拿到平台实例，稳定性不如 `/tomc` 绑定。
+只有一个 `aiocqhttp` 平台时，`mcsm_platform_id` 可以留空；多个平台时必须填写 AstrBot 消息平台配置中的唯一 ID（不是机器人 QQ 号）。指定平台不存在、客户端未就绪或多平台未指定时，插件明确记录警告，不会改发到其他群或使用另一个机器人。每次发送重新获取已加载的平台，支持平台稍晚启动。
+
+只有 `mcsm_forward_group` 留空时，才使用 `/tomc` 最近绑定的临时会话；临时绑定重载后清空。已配置群号不会被其他群的 `/tomc` 更改。配置群直发自 v0.7.3 加入，已通过本地测试，但尚未完成真实 QQ 端到端验收。
 
 注意：监听任务启动后第一次拉取日志只会建立游标，不会把旧日志全部刷到 QQ；之后只转发新增且带前缀的聊天。更新前已启用监听的用户也会使用默认 `#qq` 筛选，更新后请重启插件。
 
@@ -260,12 +264,14 @@ GET /api/protected_instance/outputlog
 `mcsm_output_size` 的单位为 KB，插件应发送 `size=64kb` 等带单位的参数。MCSManager 对纯数字 `size=64` 仅返回末尾 64 个字符，不是 64 KB。v0.7.0 和 v0.7.1 曾错误地发送纯数字参数，可能截断完整聊天行；诊断连续显示 `output_chars=64` 时需更新至包含此修复的版本。
 
 1. 保存配置并重载插件，确认 `[MCSM Chat] 配置状态` 中的 `prefix` 是实际需要的前缀。配置读取仍支持环境变量覆盖 WebUI 配置。
-2. 在目标群发送 `/tomc 测试` 重新绑定，等待 `日志游标已建立` 后发送一条全新的游戏消息。
+2. 使用配置群直发时确认群号及平台 ID；未配置群号时在目标群发送 `/tomc 测试` 重新绑定。等待 `日志游标已建立` 后发送一条全新的游戏消息。
 3. 临时开启 `mcsm_chat_debug` 并重载，查看 `轮询诊断`：`output_chars` 为拉取日志长度，`new_chars` 为新增长度，`matched` 为匹配且未被去重的消息数。诊断不输出聊天正文或凭据。
-4. `new_chars=0` 表示没有读到新增日志；有新增但 `matched=0` 时检查前缀、真实日志格式及重复消息；`matched>0` 仍收不到时检查绑定状态和转发失败日志。
+4. `new_chars=0` 表示没有读到新增日志；有新增但 `matched=0` 时检查前缀、真实日志格式及重复消息；`matched>0` 仍收不到时检查配置平台选择、临时绑定及转发失败日志。配置群直发时 `session_bound=False`、`bot_bound=False` 是正常的，不代表配置平台不可用。
 5. 排查完成后关闭诊断，避免每次轮询都输出 INFO 日志。
 
 接口单位依据：[MCSManager 官方 outputlog 实现](https://github.com/MCSManager/MCSManager/blob/master/panel/src/app/routers/instance_operate_router.ts)。
+
+消息去重只记录已经成功发送的“玩家名＋正文”。未绑定或发送报错的消息不会自动补发，但绑定后玩家再次发送相同正文时允许重试。v0.7.2 及更早版本在解析时提前记入去重缓存，可能导致未发送的同文消息被忽略；v0.7.3 修复此问题，实际 QQ 环境仍需验收。已成功发送的相同正文仍按最近 200 条记录去重。
 
 ## 相关链接
 
