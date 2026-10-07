@@ -1,7 +1,7 @@
 name: QQVerify
 display_name: QQ 群验证与 Minecraft 聊天
 desc: 群成员数学验证，支持私聊验证、超时踢出及可选 Minecraft RCON 和 MCSM 聊天转发。
-version: v0.7.3
+version: v0.7.4
 author: SelfAbandonment
 repo: https://github.com/SelfAbandonment/qqban
 support_platforms:

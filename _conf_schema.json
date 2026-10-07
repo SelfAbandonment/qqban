@@ -46,7 +46,7 @@
   "welcome_message": {
     "description": "验证成功提示语",
     "type": "text",
-    "default": "{at_user}\n【验证成功】\n欢迎加入！\n\n1. 请仔细阅读群公告\n2. 群文件可下载整合包，内含服务器 IP\n\n祝你玩得愉快！",
+    "default": "{at_user}\n【验证通过】\n欢迎加入本群，祝你玩得愉快！\n\n【入群指引】\n• 群规与通知：请先阅读群公告\n• 游戏客户端：前往群文件下载整合包\n• 服务器地址：查看整合包内附的 IP",
     "hint": "用户验证成功后发送的消息。可用变量: {at_user}, {member_name}。"
   },
   "wrong_answer_prompt": {

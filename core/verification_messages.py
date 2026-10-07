@@ -4,8 +4,10 @@ DEFAULT_TEMPLATES = {
         "题目：{question}\n作答：{reply_instruction}"
     ),
     "welcome_message": (
-        "{at_user}\n【验证成功】\n欢迎加入！\n\n"
-        "1. 请仔细阅读群公告\n2. 群文件可下载整合包，内含服务器 IP\n\n祝你玩得愉快！"
+        "{at_user}\n【验证通过】\n欢迎加入本群，祝你玩得愉快！\n\n"
+        "【入群指引】\n• 群规与通知：请先阅读群公告\n"
+        "• 游戏客户端：前往群文件下载整合包\n"
+        "• 服务器地址：查看整合包内附的 IP"
     ),
     "wrong_answer_prompt": (
         "{at_user}\n【答案错误】\n已答错 {wrong_attempts} 次，剩余尝试：{remaining_attempts}。\n\n"
@@ -40,6 +42,8 @@ LEGACY_TEMPLATES = {
     },
     "welcome_message": {
         "{at_user} 验证成功，欢迎你的加入！\n1.请仔细阅读群公告\n2.群文件下载整合包自带IP\n最后祝您玩得愉快",
+        "{at_user}\n【验证成功】\n欢迎加入！\n\n"
+        "1. 请仔细阅读群公告\n2. 群文件可下载整合包，内含服务器 IP\n\n祝你玩得愉快！",
     },
     "wrong_answer_prompt": {
         "{at_user} 答案错误，请重新回答验证。这是你的新问题：\n{question}",

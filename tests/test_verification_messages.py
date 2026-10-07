@@ -194,6 +194,48 @@ class VerificationDeliveryTests(unittest.IsolatedAsyncioTestCase):
             calls[0].kwargs["message"], "[CQ:at,qq=123] 自定义题目 23 + 18 = ?"
         )
 
+    async def test_correct_answer_sends_sectioned_welcome_to_group(self):
+        for mode in ("group", "private", "hybrid"):
+            with self.subTest(mode=mode):
+                self.bot.api.call_action.reset_mock()
+                plugin = Plugin(Mock(), {"verification_message_mode": mode})
+                task = Mock()
+                plugin.pending["456:123"] = {"gid": 456, "answer": 41, "task": task}
+                event = SimpleNamespace(
+                    get_sender_id=lambda: "123",
+                    bot=self.bot,
+                    stop_event=Mock(),
+                )
+                await plugin._process_answer(
+                    event, "456:123", "41", {"sender": {"nickname": "新成员"}}
+                )
+                self.bot.api.call_action.assert_awaited_once_with(
+                    "send_group_msg",
+                    group_id=456,
+                    message=(
+                        "[CQ:at,qq=123]\n【验证通过】\n欢迎加入本群，祝你玩得愉快！\n\n"
+                        "【入群指引】\n• 群规与通知：请先阅读群公告\n"
+                        "• 游戏客户端：前往群文件下载整合包\n"
+                        "• 服务器地址：查看整合包内附的 IP"
+                    ),
+                )
+                task.cancel.assert_called_once()
+                self.assertEqual(plugin.pending, {})
+                event.stop_event.assert_called_once()
+
+    async def test_correct_answer_preserves_custom_welcome(self):
+        plugin = Plugin(Mock(), {"welcome_message": "{at_user} 欢迎 {member_name}！"})
+        plugin.pending["456:123"] = {"gid": 456, "answer": 41, "task": Mock()}
+        event = SimpleNamespace(
+            get_sender_id=lambda: "123", bot=self.bot, stop_event=Mock()
+        )
+        await plugin._process_answer(
+            event, "456:123", "41", {"sender": {"card": "自定义昵称"}}
+        )
+        self.bot.api.call_action.assert_awaited_once_with(
+            "send_group_msg", group_id=456, message="[CQ:at,qq=123] 欢迎 自定义昵称！"
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
